@@ -98,7 +98,7 @@ async def create_user(user: UserCreate, response: Response):
                     httponly=True,
                     samesite="Lax",
                     secure=False , 
-                domain="localhost",
+                domain="https://adkaiagentfrontend.vercel.app",
                     max_age=60 * 60 * 24 * 7  # 1 week
                 )
             else:
@@ -231,7 +231,7 @@ async def login(login_request: LoginRequest, response: Response):
                     httponly=True,
                     samesite="Lax",
                     secure=False , 
-                domain="localhost",
+                domain="https://adkaiagentfrontend.vercel.app",
                     max_age=60 * 60 * 24 * 7  # 1 week
                 )
             else:
