@@ -5,24 +5,13 @@ from psycopg2 import OperationalError
 # Load environment variables from .env file
 load_dotenv()
 
-# Fetch DB credentials from environment
-DB_USER = "postgres"
-DB_PASSWORD = "AtdzZ3PTHpfyNMHM"
-DB_HOST = "db.dmagxacchospnbmybret.supabase.co"
-DB_PORT = "5432"
-DB_NAME = "postgres"
-
+# Database connection string
+DB_CONNECTION_STRING = "postgresql://postgres.dmagxacchospnbmybret:AtdzZ3PTHpfyNMHM@aws-0-ap-southeast-1.pooler.supabase.com:5432/postgres"
 
 # Function to get a DB connection
 def get_connection():
     try:
-        connection = psycopg2.connect(
-            user=DB_USER,
-            password=DB_PASSWORD,
-            host=DB_HOST,
-            port=DB_PORT,
-            dbname=DB_NAME,
-        )
+        connection = psycopg2.connect(DB_CONNECTION_STRING)
         print("✅ Database connection established successfully!")
         return connection
     except OperationalError as oe:
