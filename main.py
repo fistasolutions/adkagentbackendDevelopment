@@ -9,7 +9,8 @@ from routes.adk_agent_routes import router as adk_agent_router
 from fastapi.middleware.cors import CORSMiddleware
 app = FastAPI()
 origins = [
-    "http://localhost:3000",  # Your frontend origin
+    "http://localhost:3000",
+    "https://adkaiagentfrontend.vercel.app"
 ]
 import openai
 openai.api_key = os.getenv("OPENAI_API_KEY")
