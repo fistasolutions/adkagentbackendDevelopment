@@ -59,7 +59,7 @@ class ADKAgent:
         Keep tweets under 280 characters.
         Return the tweets in a structured format with tweet1 and tweet2 fields."""
     
-    async def get_response(self, message: str, tools: Optional[List[Dict[str, Any]]] = None) -> Tweet:
+    async def get_response(self, message: str) -> Tweet:
         """
         Get a response from the agent using the SDK's Runner.
         
@@ -83,3 +83,54 @@ class ADKAgent:
     def add_handoff(self, other_agent: 'ADKAgent') -> None:
         """Add a handoff to another agent"""
         self.agent.handoffs.append(other_agent.agent)
+
+class ChatSettings(BaseModel):
+    id: Optional[str] = None
+    instructions: str
+
+class ChatAgent:
+    def __init__(self, settings: ChatSettings):
+        """
+        Initialize the Twitter Agent that answers based only on the Twitter AI Agent system design document.
+        
+        Args:
+            settings (ChatSettings): Settings for chat behavior
+        """
+        settings.instructions = (
+                "You are a Twitter Automation Agent designed to assist users in understanding and using the "
+            "This includes:\n"
+            "- AI-powered tweet generation based on personas and trends\n"
+            "- Risk scoring and content safety detection\n"
+            "- Scheduling posts for future publication\n"
+            "- Publishing to Twitter/X via API\n"
+            "- Tracking and analyzing engagement metrics\n"
+            "- Improving content strategy using AI suggestions\n\n"
+            "Your role is to act as a knowledge interface to the Twitter Agent system. Do NOT use outside knowledge.\n"
+            "✅ Be clear, concise, and technical when needed. Only refer to functionality, architecture, and processes described in the document."
+        )
+        
+        self.settings = settings
+        self.agent = Agent(
+            name="Twitter AI Agent",
+            instructions=settings.instructions,
+            output_type=str
+        )
+
+    async def get_response(self, instructions: str) -> str:
+        """
+        Get a response from the agent using the SDK's Runner.
+
+        Args:
+            instructions (str): The user's message/query
+
+        Returns:
+            str: The agent's response
+        """
+        try:
+            result = await Runner.run(
+                self.agent,
+                instructions
+            )
+            return result.final_output
+        except Exception as e:
+            raise Exception(f"Error generating response: {str(e)}")

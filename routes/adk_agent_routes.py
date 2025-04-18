@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from typing import Optional, List, Dict, Any
-from agent.adkagent import ADKAgent, TweetAgentSettings, CharacterSettings
+from agent.adkagent import ADKAgent, TweetAgentSettings, CharacterSettings, ChatAgent, ChatSettings
 import uuid
 import os
 from openai import OpenAI
@@ -15,6 +15,9 @@ index = pc.Index("adkagent")  # use your index name
 # Store agents in memory (you might want to use a database in production)
 agents = {}
 
+# Store chat agents in memory
+chat_agents = {}
+
 class CreateTweetAgentRequest(BaseModel):
     persona_id: str
 
@@ -24,6 +27,9 @@ class UpdateTweetAgentRequest(BaseModel):
 class ChatRequest(BaseModel):
     message: str
     tools: Optional[List[Dict[str, Any]]] = None
+
+class CreateChatAgentRequest(BaseModel):
+    instructions: str
 
 async def get_characterSettings(persona_id: str) -> CharacterSettings:
     """Fetch character settings from Pinecone"""
@@ -120,4 +126,54 @@ async def setup_handoff(from_agent_id: str, to_agent_id: str):
         agents[from_agent_id].add_handoff(agents[to_agent_id])
         return {"message": f"Handoff set up from {from_agent_id} to {to_agent_id}"}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e)) 
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/chat/{agent_id}")
+async def chat_with_agent(agent_id: str, request: ChatRequest):
+    """Simple chat endpoint to interact with an agent"""
+    try:
+        if agent_id not in agents:
+            raise HTTPException(status_code=404, detail="Agent not found")
+        
+        response = await agents[agent_id].get_response(
+            message=request.message,
+            tools=request.tools
+        )
+        return {"response": response}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/chat-agents")
+async def create_chat_agent(request: CreateChatAgentRequest):
+    """Create a new chat agent"""
+    try:
+        agent_id = str(uuid.uuid4())
+        settings = ChatSettings(
+            id=agent_id,
+            instructions=request.instructions
+        )
+        
+        agent = ChatAgent(settings=settings)
+        chat_agents[agent_id] = agent
+        result = await agent.get_response(request.instructions)
+        print(result)
+        return {
+            "agent_id": agent_id,
+            "output": result
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/chat-agents/{agent_id}/chat")
+async def chat_with_agent(agent_id: str, request: ChatRequest):
+    """Chat with a chat agent"""
+    try:
+        if agent_id not in chat_agents:
+            raise HTTPException(status_code=404, detail="Chat agent not found")
+        
+        response = await chat_agents[agent_id].get_response(
+            message=request.message
+        )
+        return {"response": response}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
