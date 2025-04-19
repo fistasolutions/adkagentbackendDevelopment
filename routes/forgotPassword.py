@@ -4,8 +4,7 @@ import requests
 from typing import Optional
 from pydantic import BaseModel
 from db.db import get_connection
-from datetime import datetime, timedelta
-import pytz
+from datetime import datetime, timedelta, timezone
 import bcrypt
 
 router = APIRouter()
@@ -112,9 +111,8 @@ async def verify_code(request: VerifyCodeRequest):
         stored_code, created_at = result
         
         # Make both datetimes timezone-aware
-        utc = pytz.UTC
-        current_time = datetime.now(utc)
-        created_at = created_at.replace(tzinfo=utc)
+        current_time = datetime.now(timezone.utc)
+        created_at = created_at.replace(tzinfo=timezone.utc)
         
         # Check if code is expired (15 minutes)
         if current_time - created_at > timedelta(minutes=15):
