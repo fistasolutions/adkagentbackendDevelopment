@@ -68,7 +68,6 @@ async def create_tweet_agent(request: CreateTweetAgentRequest):
         
         initial_tweet = await agent.get_response(
             message="Generate a tweet that introduces yourself and your role",
-            tools=None
         )
         
         return {
@@ -87,7 +86,6 @@ async def get_tweet_agent(agent_id: str):
         # Generate a new tweet to demonstrate the agent's current state
         current_tweet = await agents[agent_id].get_response(
             message="Generate a tweet that shows your current personality and style",
-            tools=None
         )
         
         return {

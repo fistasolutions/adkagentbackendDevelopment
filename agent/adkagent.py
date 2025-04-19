@@ -59,7 +59,7 @@ class ADKAgent:
         Keep tweets under 280 characters.
         Return the tweets in a structured format with tweet1 and tweet2 fields."""
     
-    async def get_response(self, message: str) -> Tweet:
+    async def get_response(self, message: str, tools: Optional[List[Dict[str, Any]]] = None) -> Tweet:
         """
         Get a response from the agent using the SDK's Runner.
         
@@ -74,7 +74,7 @@ class ADKAgent:
             result = await Runner.run(
                 self.agent,
                 message,
-                # tools=tools
+                tools=tools
             )
             return result.final_output
         except Exception as e:

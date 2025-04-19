@@ -6,6 +6,7 @@ import os
 from routes.persona import router as persona_router
 from routes.agent_routes import router as agent_router
 from routes.adk_agent_routes import router as adk_agent_router
+from routes.forgotPassword import router as forgot_password_router
 from fastapi.middleware.cors import CORSMiddleware
 app = FastAPI()
 origins = [
@@ -27,6 +28,7 @@ app.include_router(twitter_router, prefix="/api")
 app.include_router(persona_router, prefix="/api")
 app.include_router(agent_router, prefix="/api")
 app.include_router(adk_agent_router, prefix="/api")
+app.include_router(forgot_password_router, prefix="/api")
 
 
 @app.get("/")
