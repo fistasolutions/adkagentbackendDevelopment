@@ -31,6 +31,9 @@ class ChatRequest(BaseModel):
 class CreateChatAgentRequest(BaseModel):
     instructions: str
 
+class GenerateTweetsRequest(BaseModel):
+    topic: Optional[str] = None
+
 async def get_characterSettings(persona_id: str) -> CharacterSettings:
     """Fetch character settings from Pinecone"""
     try:
@@ -76,71 +79,6 @@ async def create_tweet_agent(request: CreateTweetAgentRequest):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.get("/tweet-agents/{agent_id}")
-async def get_tweet_agent(agent_id: str):
-    """Get tweet agent details"""
-    try:
-        if agent_id not in agents:
-            raise HTTPException(status_code=404, detail="Agent not found")
-        
-        # Generate a new tweet to demonstrate the agent's current state
-        current_tweet = await agents[agent_id].get_response(
-            message="Generate a tweet that shows your current personality and style",
-        )
-        
-        return {
-            "agent_id": agent_id,
-            "tweet": current_tweet,
-            "character_settings": agents[agent_id].settings.characterSettings
-        }
-    except Exception as e:
-        raise HTTPException(status_code=404, detail=str(e))
-
-@router.post("/tweet-agents/{agent_id}/generate")
-async def generate_tweet(agent_id: str, request: ChatRequest):
-    """Generate a tweet using the agent"""
-    try:
-        if agent_id not in agents:
-            raise HTTPException(status_code=404, detail="Agent not found")
-        
-        response = await agents[agent_id].get_response(
-            message=request.message,
-            tools=request.tools
-        )
-        return {"tweet": response}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-@router.post("/tweet-agents/{from_agent_id}/handoff/{to_agent_id}")
-async def setup_handoff(from_agent_id: str, to_agent_id: str):
-    """Set up a handoff between two tweet agents"""
-    try:
-        if from_agent_id not in agents:
-            raise HTTPException(status_code=404, detail="From agent not found")
-            
-        if to_agent_id not in agents:
-            raise HTTPException(status_code=404, detail="To agent not found")
-            
-        agents[from_agent_id].add_handoff(agents[to_agent_id])
-        return {"message": f"Handoff set up from {from_agent_id} to {to_agent_id}"}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-@router.post("/chat/{agent_id}")
-async def chat_with_agent(agent_id: str, request: ChatRequest):
-    """Simple chat endpoint to interact with an agent"""
-    try:
-        if agent_id not in agents:
-            raise HTTPException(status_code=404, detail="Agent not found")
-        
-        response = await agents[agent_id].get_response(
-            message=request.message,
-            tools=request.tools
-        )
-        return {"response": response}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
 @router.post("/chat-agents")
 async def create_chat_agent(request: CreateChatAgentRequest):
     """Create a new chat agent"""
@@ -162,16 +100,41 @@ async def create_chat_agent(request: CreateChatAgentRequest):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.post("/chat-agents/{agent_id}/chat")
-async def chat_with_agent(agent_id: str, request: ChatRequest):
-    """Chat with a chat agent"""
+@router.post("/generate-tweets")
+async def generate_tweets(request: GenerateTweetsRequest):
+    """Generate 5 tweets using an existing agent with persona-specific settings"""
     try:
-        if agent_id not in chat_agents:
-            raise HTTPException(status_code=404, detail="Chat agent not found")
         
-        response = await chat_agents[agent_id].get_response(
-            message=request.message
+        
+        
+        agent_id = str(uuid.uuid4())
+        characterSettings = CharacterSettings(
+            characterSettings="You are a social media expert who creates engaging and relevant tweets."
         )
-        return {"response": response}
+        
+        settings = TweetAgentSettings(
+            id=agent_id,
+            characterSettings=characterSettings
+        )
+        
+        agent = ADKAgent(settings=settings)
+        tweets = []
+        
+        # Generate 5 tweets
+        for i in range(5):
+            prompt = "Generate a tweet"
+            if request.topic:
+                prompt += f" about {request.topic}"
+            
+            tweet = await agent.get_response(message=prompt)
+            tweets.append(tweet)
+        
+        return {
+            "tweets": tweets
+        }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+
+

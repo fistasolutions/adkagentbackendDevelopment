@@ -212,3 +212,34 @@ async def get_user_followers(username: str):
             
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/trends/japan")
+async def get_japan_trends():
+    """Get trending topics in Japan"""
+    try:
+        url = "https://api.twitter.com/1.1/trends/place.json"
+        params = {
+            "id": 23424856  # WOEID for Japan
+        }
+        
+        async with httpx.AsyncClient() as client:
+            resp = await client.get(url, headers=HEADERS, params=params)
+            
+            if resp.status_code != 200:
+                raise HTTPException(status_code=resp.status_code, detail=f"Twitter API Error: {resp.text}")
+                
+            data = resp.json()
+            if not data or not isinstance(data, list) or len(data) == 0:
+                return {"trends": []}
+                
+            trends = data[0].get("trends", [])
+            
+            return {
+                "location": "Japan",
+                "as_of": data[0].get("as_of"),
+                "created_at": data[0].get("created_at"),
+                "trends": trends
+            }
+            
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
