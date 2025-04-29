@@ -1,10 +1,18 @@
 from fastapi import APIRouter, HTTPException
+from pydantic import BaseModel
 from db.db import get_connection
 from models.twitter_data import TwitterData
 from datetime import datetime, timedelta
 import json
 
 router = APIRouter()
+
+
+
+class TweetFetchRequest(BaseModel):
+    user_id: int
+    account_id: int
+
 
 @router.post("/twitter-data/")
 async def save_twitter_data(data: dict, user_id: int,username:str):
@@ -53,6 +61,8 @@ async def save_twitter_data(data: dict, user_id: int,username:str):
     finally:
         conn.close()
 
+
+
 @router.get("/twitter-data/{user_id}")
 async def get_twitter_data(user_id: int):
     try:
@@ -77,6 +87,39 @@ async def get_twitter_data(user_id: int):
                     "update_at": row[2],
                     "data_json": json.loads(row[3]),
                     "user_id": row[4]
+                }
+                for row in results
+            ]
+            
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        conn.close() 
+        
+@router.get("/generated-tweets/{user_id}/{account_id}")
+async def get_generated_tweets(user_id: int, account_id: int    ):
+    try:
+        conn = get_connection()
+        with conn.cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT id, created_at, content, user_id, account_id
+                FROM posts
+                WHERE user_id = %s AND account_id = %s
+                ORDER BY created_at DESC
+                """,
+                (user_id, account_id)
+            )
+            results = cursor.fetchall()
+            if not results:
+                return []
+            return [
+                {
+                    "post_id": row[0],
+                    "created_at": row[1],
+                    "content": row[2],
+                    "user_id": row[3],
+                    "account_id": row[4]
                 }
                 for row in results
             ]
