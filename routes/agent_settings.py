@@ -21,7 +21,7 @@ class AgentSettingResponse(BaseModel):
     character_settings: str
     created_at: datetime
 
-@router.post("/agent-settings/", response_model=AgentSettingResponse)
+@router.post("/agent-settings", response_model=AgentSettingResponse)
 async def create_agent_setting(agent_setting: AgentSettingCreate):
     try:
         conn = get_connection()
@@ -73,7 +73,7 @@ async def create_agent_setting(agent_setting: AgentSettingCreate):
     finally:
         conn.close()
 
-@router.get("/agent-settings/", response_model=List[AgentSettingResponse])
+@router.get("/agent-settings", response_model=List[AgentSettingResponse])
 async def get_all_agent_settings():
     try:
         conn = get_connection()
