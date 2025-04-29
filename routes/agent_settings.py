@@ -33,7 +33,7 @@ async def create_agent_setting(agent_setting: AgentSettingCreate):
                 raise HTTPException(status_code=404, detail="User not found")
             
             # Get account_id from username
-            cursor.execute("SELECT account_id FROM twitter_account WHERE username = %s", (agent_setting.username,))
+            cursor.execute("SELECT account_id FROM twitter_account WHERE username = %s AND user_id = %s", (agent_setting.username, agent_setting.user_id))
             account_result = cursor.fetchone()
             if not account_result:
                 raise HTTPException(status_code=404, detail="Twitter account not found")
