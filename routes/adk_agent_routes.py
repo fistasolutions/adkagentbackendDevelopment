@@ -58,12 +58,12 @@ async def create_tweet_agent(request: CreateTweetAgentRequest):
     """Create a new tweet generation agent"""
     try:
         # Fetch character settings from Pinecone
-        characterSettings = await get_characterSettings(request.persona_id)
+        # characterSettings = await get_characterSettings(request.persona_id)
         
         agent_id = str(uuid.uuid4())
         settings = TweetAgentSettings(
             id=agent_id,
-            characterSettings=characterSettings
+            characterSettings="You are a social media expert who creates engaging and relevant tweets."
         )
         
         agent = ADKAgent(settings=settings)
