@@ -63,11 +63,11 @@ async def get_accounts(user_id: int, response: Response):
             accounts = []
             for row in rows:
                 account = AccountResponse(
-                    user_id=str(row[0]),
+                    account_id=str(row[0]),
                     created_at=row[1],
                     updated_at=row[2],
                     username=row[3],
-                    account_id=str(row[4])
+                    user_id=str(row[4])
                 )
                 accounts.append(account)
             

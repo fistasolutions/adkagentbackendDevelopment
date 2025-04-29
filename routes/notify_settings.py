@@ -1,24 +1,29 @@
 from fastapi import APIRouter, HTTPException, Depends
 from db.db import get_connection
 from pydantic import BaseModel
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 from datetime import datetime
+import json
 
 router = APIRouter()
 
 class NotifySettingCreate(BaseModel):
-    posting_day: str
-    posting_time: str
+    posting_day: Dict[str, Any]
+    posting_time: Dict[str, Any]
     sentence_length: int
     notify_type: str
     template_use: bool
     target_hashtag: Optional[str] = None
-    persona_id: int
+    user_id: int
     account_id: int
+    created_at: datetime
+    posting_frequency: str
+    pre_create: str
+    post_mode: str
 
 class NotifySettingUpdate(BaseModel):
-    posting_day: Optional[str] = None
-    posting_time: Optional[str] = None
+    posting_day: Optional[Dict[str, Any]] = None
+    posting_time: Optional[Dict[str, Any]] = None
     sentence_length: Optional[int] = None
     notify_type: Optional[str] = None
     template_use: Optional[bool] = None
@@ -27,13 +32,13 @@ class NotifySettingUpdate(BaseModel):
 
 class NotifySettingResponse(BaseModel):
     notify_id: int
-    posting_day: str
-    posting_time: str
+    posting_day: Dict[str, Any]
+    posting_time: Dict[str, Any]
     sentence_length: int
     notify_type: str
     template_use: bool
     target_hashtag: Optional[str]
-    persona_id: int
+    user_id: int
     account_id: int
     created_at: datetime
 
@@ -43,32 +48,50 @@ async def create_notify_setting(notify_setting: NotifySettingCreate):
         conn = get_connection()
         with conn.cursor() as cursor:
             # Check if persona exists
-            cursor.execute("SELECT id FROM personas WHERE id = %s", (notify_setting.persona_id,))
+            cursor.execute("SELECT user_id FROM users WHERE user_id = %s", (notify_setting.user_id,))
             if not cursor.fetchone():
-                raise HTTPException(status_code=404, detail="Persona not found")
+                raise HTTPException(status_code=404, detail="User not found")
             
             # Check if account exists
             cursor.execute("SELECT account_id FROM twitter_account WHERE account_id = %s", (notify_setting.account_id,))
             if not cursor.fetchone():
                 raise HTTPException(status_code=404, detail="Account not found")
+
+            # Check if record with same user_id, account_id and notify_type exists
+            cursor.execute(
+                """SELECT notify_id FROM persona_notify 
+                WHERE user_id = %s AND account_id = %s AND notify_type = %s""",
+                (notify_setting.user_id, notify_setting.account_id, notify_setting.notify_type)
+            )
+            existing_record = cursor.fetchone()
+            
+            # If record exists, delete it
+            if existing_record:
+                cursor.execute(
+                    "DELETE FROM persona_notify WHERE notify_id = %s",
+                    (existing_record[0],)
+                )
             
             # Insert new notification setting
             cursor.execute(
-                """INSERT INTO notify_settings 
+                """INSERT INTO persona_notify 
                 (posting_day, posting_time, sentence_length, notify_type, template_use, 
-                target_hashtag, persona_id, account_id, created_at) 
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, NOW()) 
+                target_hashtag, user_id, account_id, created_at,posting_frequency,pre_create,post_mode) 
+                VALUES (%s::jsonb, %s::jsonb, %s, %s, %s, %s, %s, %s, NOW(),%s,%s,%s) 
                 RETURNING notify_id, posting_day, posting_time, sentence_length, 
-                notify_type, template_use, target_hashtag, persona_id, account_id, created_at""",
+                notify_type, template_use, target_hashtag, user_id, account_id, created_at,posting_frequency,pre_create,post_mode""",
                 (
-                    notify_setting.posting_day,
-                    notify_setting.posting_time,
+                    json.dumps(notify_setting.posting_day),
+                    json.dumps(notify_setting.posting_time),
                     notify_setting.sentence_length,
                     notify_setting.notify_type,
                     notify_setting.template_use,
                     notify_setting.target_hashtag,
-                    notify_setting.persona_id,
-                    notify_setting.account_id
+                    notify_setting.user_id,
+                    notify_setting.account_id,
+                    notify_setting.posting_frequency,
+                    notify_setting.pre_create,
+                    notify_setting.post_mode
                 )
             )
             
@@ -83,9 +106,12 @@ async def create_notify_setting(notify_setting: NotifySettingCreate):
                 "notify_type": setting[4],
                 "template_use": setting[5],
                 "target_hashtag": setting[6],
-                "persona_id": setting[7],
+                "user_id": setting[7],
                 "account_id": setting[8],
-                "created_at": setting[9]
+                "created_at": setting[9],
+                "posting_frequency": setting[10],
+                "pre_create": setting[11],
+                "post_mode": setting[12]
             }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -93,14 +119,14 @@ async def create_notify_setting(notify_setting: NotifySettingCreate):
         conn.close()
 
 @router.get("/notify-settings/", response_model=List[NotifySettingResponse])
-async def get_all_notify_settings():
+async def get_all_persona_notify():
     try:
         conn = get_connection()
         with conn.cursor() as cursor:
             cursor.execute(
                 """SELECT notify_id, posting_day, posting_time, sentence_length, 
-                notify_type, template_use, target_hashtag, persona_id, account_id, created_at 
-                FROM notify_settings"""
+                notify_type, template_use, target_hashtag, user_id, account_id, created_at 
+                FROM persona_notify"""
             )
             settings = cursor.fetchall()
             return [
@@ -112,7 +138,7 @@ async def get_all_notify_settings():
                     "notify_type": setting[4],
                     "template_use": setting[5],
                     "target_hashtag": setting[6],
-                    "persona_id": setting[7],
+                    "user_id": setting[7],
                     "account_id": setting[8],
                     "created_at": setting[9]
                 }
@@ -130,8 +156,8 @@ async def get_notify_setting(notify_id: int):
         with conn.cursor() as cursor:
             cursor.execute(
                 """SELECT notify_id, posting_day, posting_time, sentence_length, 
-                notify_type, template_use, target_hashtag, persona_id, account_id, created_at 
-                FROM notify_settings WHERE notify_id = %s""",
+                notify_type, template_use, target_hashtag, user_id, account_id, created_at 
+                FROM persona_notify WHERE notify_id = %s""",
                 (notify_id,)
             )
             setting = cursor.fetchone()
@@ -145,7 +171,7 @@ async def get_notify_setting(notify_id: int):
                 "notify_type": setting[4],
                 "template_use": setting[5],
                 "target_hashtag": setting[6],
-                "persona_id": setting[7],
+                "user_id": setting[7],
                 "account_id": setting[8],
                 "created_at": setting[9]
             }
@@ -154,16 +180,24 @@ async def get_notify_setting(notify_id: int):
     finally:
         conn.close()
 
-@router.get("/notify-settings/persona/{persona_id}", response_model=List[NotifySettingResponse])
-async def get_persona_notify_settings(persona_id: int):
+@router.get("/notify-settings/persona/{user_id}/{username}", response_model=List[NotifySettingResponse])
+async def get_persona_notify_settings(user_id: int, username: str):
     try:
         conn = get_connection()
         with conn.cursor() as cursor:
+            # Check if twitter account exists
+            cursor.execute("SELECT account_id FROM twitter_account WHERE username = %s", (username,))
+            account_result = cursor.fetchone()
+            if not account_result:
+                raise HTTPException(status_code=404, detail="Twitter account not found")
+            account_id = account_result[0]
+            
+            # Get notification settings
             cursor.execute(
                 """SELECT notify_id, posting_day, posting_time, sentence_length, 
-                notify_type, template_use, target_hashtag, persona_id, account_id, created_at 
-                FROM notify_settings WHERE persona_id = %s""",
-                (persona_id,)
+                notify_type, template_use, target_hashtag, user_id, account_id, created_at 
+                FROM persona_notify WHERE user_id = %s AND account_id = %s""",
+                (user_id, account_id)
             )
             settings = cursor.fetchall()
             if not settings:
@@ -177,14 +211,16 @@ async def get_persona_notify_settings(persona_id: int):
                     "notify_type": setting[4],
                     "template_use": setting[5],
                     "target_hashtag": setting[6],
-                    "persona_id": setting[7],
+                    "user_id": setting[7],
                     "account_id": setting[8],
                     "created_at": setting[9]
                 }
                 for setting in settings
             ]
+    except HTTPException:
+        raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=f"Error retrieving notification settings: {str(e)}")
     finally:
         conn.close()
 
@@ -194,7 +230,7 @@ async def update_notify_setting(notify_id: int, notify_setting: NotifySettingUpd
         conn = get_connection()
         with conn.cursor() as cursor:
             # Check if setting exists
-            cursor.execute("SELECT notify_id FROM notify_settings WHERE notify_id = %s", (notify_id,))
+            cursor.execute("SELECT notify_id FROM persona_notify WHERE notify_id = %s", (notify_id,))
             if not cursor.fetchone():
                 raise HTTPException(status_code=404, detail="Notification setting not found")
             
@@ -203,12 +239,12 @@ async def update_notify_setting(notify_id: int, notify_setting: NotifySettingUpd
             update_values = []
             
             if notify_setting.posting_day is not None:
-                update_fields.append("posting_day = %s")
-                update_values.append(notify_setting.posting_day)
+                update_fields.append("posting_day = %s::jsonb")
+                update_values.append(json.dumps(notify_setting.posting_day))
             
             if notify_setting.posting_time is not None:
-                update_fields.append("posting_time = %s")
-                update_values.append(notify_setting.posting_time)
+                update_fields.append("posting_time = %s::jsonb")
+                update_values.append(json.dumps(notify_setting.posting_time))
             
             if notify_setting.sentence_length is not None:
                 update_fields.append("sentence_length = %s")
@@ -238,11 +274,11 @@ async def update_notify_setting(notify_id: int, notify_setting: NotifySettingUpd
             
             # Execute update
             cursor.execute(
-                f"""UPDATE notify_settings 
+                f"""UPDATE persona_notify 
                 SET {', '.join(update_fields)}
                 WHERE notify_id = %s
                 RETURNING notify_id, posting_day, posting_time, sentence_length, 
-                notify_type, template_use, target_hashtag, persona_id, account_id, created_at""",
+                notify_type, template_use, target_hashtag, user_id, account_id, created_at""",
                 tuple(update_values)
             )
             
@@ -257,7 +293,7 @@ async def update_notify_setting(notify_id: int, notify_setting: NotifySettingUpd
                 "notify_type": updated_setting[4],
                 "template_use": updated_setting[5],
                 "target_hashtag": updated_setting[6],
-                "persona_id": updated_setting[7],
+                "user_id": updated_setting[7],
                 "account_id": updated_setting[8],
                 "created_at": updated_setting[9]
             }
@@ -272,12 +308,12 @@ async def delete_notify_setting(notify_id: int):
         conn = get_connection()
         with conn.cursor() as cursor:
             # Check if setting exists
-            cursor.execute("SELECT notify_id FROM notify_settings WHERE notify_id = %s", (notify_id,))
+            cursor.execute("SELECT notify_id FROM persona_notify WHERE notify_id = %s", (notify_id,))
             if not cursor.fetchone():
                 raise HTTPException(status_code=404, detail="Notification setting not found")
             
             # Delete setting
-            cursor.execute("DELETE FROM notify_settings WHERE notify_id = %s", (notify_id,))
+            cursor.execute("DELETE FROM persona_notify WHERE notify_id = %s", (notify_id,))
             conn.commit()
             
             return {"message": "Notification setting deleted successfully"}
