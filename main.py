@@ -11,6 +11,15 @@ from routes.twitter_account import router as twitter_account_router
 from routes.agent_settings import router as agent_settings_router
 from routes.notify_settings import router as notify_settings_router
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi import Body
+from pydantic import BaseModel
+import logging
+from typing import List
+import asyncio
+from routes.daily_tweet_generator import generate_tweet
+import json
+from datetime import datetime
+
 app = FastAPI()
 origins = [
     "http://localhost:3000",
@@ -35,6 +44,20 @@ app.include_router(forgot_password_router, prefix="/api")
 app.include_router(twitter_account_router, prefix="/api")
 app.include_router(agent_settings_router, prefix="/api")
 app.include_router(notify_settings_router, prefix="/api")
+
+class TweetGenerationRequest(BaseModel):
+    learning_data: str
+
+@app.post("/api/generate-pre-tweets")
+async def generate_tweets(request: TweetGenerationRequest):
+    try:
+        result = await generate_tweet(
+            request.learning_data
+        )
+        
+        return {"status": "success", "data": result}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
 
 
 @app.get("/")
