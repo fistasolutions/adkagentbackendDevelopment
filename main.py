@@ -47,18 +47,78 @@ app.include_router(notify_settings_router, prefix="/api")
 
 class TweetGenerationRequest(BaseModel):
     learning_data: str
+    account_id: int
+    user_id: int
+
+class SaveTweetsRequest(BaseModel):
+    tweets: List[str]
+    user_id: int
+    username: str
+
+class TweetFetchRequest(BaseModel):
+    user_id: int
+    account_id: int
 
 @app.post("/api/generate-pre-tweets")
 async def generate_tweets(request: TweetGenerationRequest):
     try:
+        
+        
+        
         result = await generate_tweet(
             request.learning_data
         )
         
-        return {"status": "success", "data": result}
+        # Save the generated tweets to database
+        conn = get_connection()
+        try:
+            with conn.cursor() as cursor:
+                # Get current timestamp
+                current_time = datetime.utcnow()
+                
+                # Save each tweet as a separate row
+                saved_posts = []
+                for tweet in result:
+                    # Convert single tweet to JSON
+                    data_json = json.dumps({"tweet": tweet}, ensure_ascii=False, indent=2)
+                    
+                    # Insert tweet into database
+                    cursor.execute(
+                        """
+                        INSERT INTO posts (created_at, content, user_id, account_id)
+                        VALUES (%s, %s, %s, %s)
+                        RETURNING id, created_at, content, user_id, account_id
+                        """,
+                        (current_time, data_json, request.user_id, request.account_id)
+                    )
+                    # Get the full post data
+                    post_data = cursor.fetchone()
+                    saved_posts.append({
+                        "id": post_data[0],
+                        "created_at": post_data[1],
+                        "content": json.loads(post_data[2]),
+                        "user_id": post_data[3],
+                        "account_id": post_data[4]
+                    })
+                
+                conn.commit()
+                
+                return {
+                    "status": "success", 
+                    "data": result,
+                    "message": f"{len(saved_posts)} tweets saved successfully",
+                    "saved_posts": saved_posts
+                }
+        finally:
+            conn.close()
+            
     except Exception as e:
         return {"status": "error", "message": str(e)}
-
+    
+    
+  
+    
+    
 
 @app.get("/")
 async def root():
@@ -71,6 +131,43 @@ async def root():
         return {"status": "success", "message": "Database connection is working"}
     except Exception as e:
         return {"status": "error", "message": str(e)}
+    
+    
+    
+    
+
+@app.get("/api/fetch-tweets")
+async def fetch_tweets(request: TweetFetchRequest):
+    try:
+        conn = get_connection()
+        with conn.cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT id, created_at, content, user_id, account_id
+                FROM posts
+                WHERE user_id = %s AND account_id = %s
+                ORDER BY created_at DESC
+                """,
+                (request.user_id, request.account_id)
+            )
+            posts = cursor.fetchall()
+            
+            # Format the response with labeled fields
+            formatted_posts = []
+            for post in posts:
+                formatted_posts.append({
+                    "post_id": post[0],
+                    "created_at": post[1],
+                    "tweet_content": json.loads(post[2]),
+                    "user_id": post[3],
+                    "account_id": post[4]
+                })
+            
+            return formatted_posts
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+    finally:
+        conn.close()
     
     
     

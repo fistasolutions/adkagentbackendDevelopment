@@ -978,3 +978,1044 @@ asyncio.exceptions.CancelledError
 2025-04-29 16:53:05,931 - watchfiles.main - INFO - 1 change detected
 2025-04-29 16:53:06,291 - watchfiles.main - INFO - 1 change detected
 2025-04-29 16:53:06,647 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:53:07,410 - watchfiles.main - INFO - 100 changes detected
+2025-04-29 16:53:07,779 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:53:12,384 - watchfiles.main - INFO - 6 changes detected
+2025-04-29 16:53:12,739 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:53:13,498 - watchfiles.main - INFO - 3 changes detected
+2025-04-29 16:53:13,854 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:53:14,564 - watchfiles.main - INFO - 6 changes detected
+2025-04-29 16:53:19,976 - routes.daily_tweet_generator - INFO - Starting tweet generation...
+2025-04-29 16:53:22,332 - httpx - INFO - HTTP Request: POST https://api.openai.com/v1/traces/ingest "HTTP/1.1 204 No Content"
+2025-04-29 16:53:27,192 - httpx - INFO - HTTP Request: POST https://api.openai.com/v1/responses "HTTP/1.1 200 OK"
+2025-04-29 16:53:27,194 - routes.daily_tweet_generator - INFO - Generated 5 formatted tweets
+2025-04-29 16:53:27,811 - httpx - INFO - HTTP Request: POST https://api.openai.com/v1/traces/ingest "HTTP/1.1 204 No Content"
+2025-04-29 16:54:09,200 - routes.daily_tweet_generator - INFO - Starting tweet generation...
+2025-04-29 16:54:13,587 - httpx - INFO - HTTP Request: POST https://api.openai.com/v1/traces/ingest "HTTP/1.1 204 No Content"
+2025-04-29 16:54:18,885 - httpx - INFO - HTTP Request: POST https://api.openai.com/v1/responses "HTTP/1.1 200 OK"
+2025-04-29 16:54:18,890 - routes.daily_tweet_generator - INFO - Generated 5 formatted tweets
+2025-04-29 16:54:19,633 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:54:19,987 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:54:20,351 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:54:20,716 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:54:21,074 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:54:21,430 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:54:21,787 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:54:22,145 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:54:22,501 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:54:22,858 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:54:23,212 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:54:23,570 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:54:23,926 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:54:24,183 - httpx - INFO - HTTP Request: POST https://api.openai.com/v1/traces/ingest "HTTP/1.1 204 No Content"
+2025-04-29 16:54:24,280 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:54:24,639 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:54:24,993 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:54:25,351 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:54:25,707 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:54:26,066 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:54:26,421 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:54:26,780 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:54:27,136 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:54:27,492 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:54:27,848 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:54:28,204 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:54:28,560 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:54:28,917 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:54:29,270 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:54:29,629 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:54:29,986 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:54:30,342 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:54:30,698 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:54:31,056 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:54:31,412 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:54:31,773 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:54:32,127 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:54:32,485 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:54:32,843 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:54:33,198 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:54:33,558 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:54:33,913 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:54:34,267 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:54:34,621 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:54:34,977 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:54:35,334 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:54:35,691 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:54:36,048 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:54:36,406 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:54:36,762 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:54:37,119 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:54:37,476 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:54:37,830 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:54:38,186 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:54:38,541 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:54:38,900 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:54:39,258 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:54:39,615 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:54:39,973 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:54:40,331 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:54:40,686 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:54:41,042 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:54:41,401 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:54:41,759 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:54:42,116 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:54:42,475 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:54:42,833 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:54:43,189 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:54:43,546 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:54:43,904 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:54:44,260 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:54:44,616 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:54:44,974 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:54:44,996 - routes.daily_tweet_generator - INFO - Starting tweet generation...
+2025-04-29 16:54:45,331 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:54:45,690 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:54:46,046 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:54:46,403 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:54:46,763 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:54:47,121 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:54:47,477 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:54:47,835 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:54:48,192 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:54:48,551 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:54:48,906 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:54:49,265 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:54:49,629 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:54:49,706 - httpx - INFO - HTTP Request: POST https://api.openai.com/v1/traces/ingest "HTTP/1.1 204 No Content"
+2025-04-29 16:54:49,993 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:54:50,348 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:54:50,701 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:54:51,056 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:54:51,413 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:54:51,768 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:54:52,123 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:54:52,478 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:54:52,836 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:54:53,194 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:54:53,551 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:54:53,906 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:54:54,264 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:54:54,619 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:54:54,976 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:54:55,330 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:54:55,687 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:54:56,046 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:54:56,400 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:54:56,758 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:54:57,119 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:54:57,478 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:54:57,834 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:54:58,192 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:54:58,549 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:54:58,903 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:54:59,263 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:54:59,619 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:54:59,972 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:55:00,327 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:55:00,683 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:55:01,039 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:55:01,397 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:55:01,755 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:55:02,112 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:55:02,468 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:55:02,716 - httpx - INFO - HTTP Request: POST https://api.openai.com/v1/responses "HTTP/1.1 200 OK"
+2025-04-29 16:55:02,719 - routes.daily_tweet_generator - INFO - Generated 5 formatted tweets
+2025-04-29 16:55:02,822 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:55:03,181 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:55:03,540 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:55:03,896 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:55:04,253 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:55:04,612 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:55:04,972 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:55:05,327 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:55:05,348 - httpx - INFO - HTTP Request: POST https://api.openai.com/v1/traces/ingest "HTTP/1.1 204 No Content"
+2025-04-29 16:55:05,684 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:55:06,038 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:55:06,393 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:55:06,755 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:55:07,112 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:55:07,472 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:55:07,826 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:55:08,183 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:55:08,539 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:55:08,891 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:55:09,248 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:55:09,604 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:55:09,961 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:55:10,319 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:55:10,675 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:55:11,030 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:55:11,389 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:55:11,745 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:55:12,100 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:55:12,456 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:55:12,813 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:55:13,171 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:55:13,527 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:55:13,884 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:55:14,240 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:55:14,597 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:55:14,953 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:55:15,308 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:55:15,663 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:55:16,021 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:55:16,376 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:55:16,732 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:55:17,086 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:55:17,443 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:55:17,802 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:55:18,155 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:55:18,511 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:55:18,866 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:55:19,221 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:55:19,578 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:55:19,932 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:55:20,291 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:55:20,645 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:55:21,001 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:55:21,359 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:55:21,715 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:55:22,075 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:55:22,428 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:55:22,783 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:55:23,139 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:55:23,496 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:55:23,854 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:55:24,212 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:55:24,565 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:55:24,919 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:55:25,273 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:55:25,629 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:55:25,989 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:55:26,345 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:55:26,697 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:55:27,054 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:55:27,410 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:55:27,766 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:55:28,124 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:55:28,479 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:55:28,836 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:55:29,194 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:55:29,551 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:55:29,908 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:55:30,263 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:55:30,619 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:55:30,975 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:55:31,338 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:55:31,694 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:55:32,050 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:55:32,404 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:55:32,760 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:55:33,117 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:55:33,476 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:55:33,835 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:55:34,191 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:55:34,549 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:55:34,905 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:55:35,263 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:55:35,619 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:55:35,974 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:55:36,329 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:55:36,686 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:55:37,043 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:55:37,402 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:55:37,757 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:55:38,113 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:55:38,478 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:55:38,837 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:55:39,196 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:55:39,554 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:55:39,909 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:55:40,264 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:55:40,628 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:55:40,980 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:55:41,336 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:55:41,694 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:55:42,049 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:55:42,406 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:55:42,764 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:55:43,122 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:55:43,479 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:55:43,834 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:55:44,193 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:55:44,548 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:55:44,903 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:55:45,257 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:55:45,615 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:55:45,972 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:55:46,327 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:55:46,684 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:55:47,043 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:55:47,398 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:55:47,753 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:55:48,111 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:55:48,464 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:55:48,823 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:55:49,177 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:55:49,530 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:55:49,884 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:55:50,239 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:55:50,595 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:55:50,948 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:55:51,302 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:55:51,659 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:55:52,011 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:55:52,367 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:55:52,723 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:55:53,077 - watchfiles.main - INFO - 1 change detected
+2025-04-29 16:55:53,431 - watchfiles.main - INFO - 2 changes detected
+2025-04-29 16:55:53,439 - uvicorn.error - WARNING - WatchFiles detected changes in 'main.py'. Reloading...
+2025-04-29 16:55:53,550 - uvicorn.error - INFO - Shutting down
+2025-04-29 16:55:53,674 - uvicorn.error - INFO - Waiting for connections to close. (CTRL+C to force quit)
+2025-04-29 17:00:52,108 - uvicorn.error - INFO - Will watch for changes in these directories: ['C:\\Users\\abdul\\OneDrive\\Documents\\GitHub\\adkagentbackendDevelopment']
+2025-04-29 17:00:52,110 - uvicorn.error - INFO - Uvicorn running on http://127.0.0.1:8000 (Press CTRL+C to quit)
+2025-04-29 17:00:52,111 - uvicorn.error - INFO - Started reloader process [9224] using WatchFiles
+2025-04-29 17:00:57,232 - uvicorn.error - INFO - Started server process [28788]
+2025-04-29 17:00:57,233 - uvicorn.error - INFO - Waiting for application startup.
+2025-04-29 17:00:57,234 - uvicorn.error - INFO - Application startup complete.
+2025-04-29 17:01:57,397 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:01:57,755 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:01:58,113 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:01:58,467 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:01:58,822 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:01:59,179 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:01:59,535 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:01:59,892 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:02:00,245 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:02:00,605 - watchfiles.main - INFO - 2 changes detected
+2025-04-29 17:02:00,606 - uvicorn.error - WARNING - WatchFiles detected changes in 'main.py'. Reloading...
+2025-04-29 17:02:00,643 - uvicorn.error - INFO - Shutting down
+2025-04-29 17:02:00,751 - uvicorn.error - INFO - Waiting for application shutdown.
+2025-04-29 17:02:00,752 - uvicorn.error - INFO - Application shutdown complete.
+2025-04-29 17:02:00,753 - uvicorn.error - INFO - Finished server process [28788]
+2025-04-29 17:02:01,473 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:02:01,828 - watchfiles.main - INFO - 5 changes detected
+2025-04-29 17:02:06,271 - uvicorn.error - INFO - Started server process [21532]
+2025-04-29 17:02:06,273 - uvicorn.error - INFO - Waiting for application startup.
+2025-04-29 17:02:06,275 - uvicorn.error - INFO - Application startup complete.
+2025-04-29 17:02:07,089 - routes.daily_tweet_generator - INFO - Starting tweet generation...
+2025-04-29 17:02:11,221 - httpx - INFO - HTTP Request: POST https://api.openai.com/v1/traces/ingest "HTTP/1.1 204 No Content"
+2025-04-29 17:02:12,873 - httpx - INFO - HTTP Request: POST https://api.openai.com/v1/responses "HTTP/1.1 200 OK"
+2025-04-29 17:02:12,923 - routes.daily_tweet_generator - INFO - Generated 5 formatted tweets
+2025-04-29 17:02:17,378 - httpx - INFO - HTTP Request: POST https://api.openai.com/v1/traces/ingest "HTTP/1.1 204 No Content"
+2025-04-29 17:02:46,948 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:02:46,949 - uvicorn.error - WARNING - WatchFiles detected changes in 'main.py'. Reloading...
+2025-04-29 17:02:47,026 - uvicorn.error - INFO - Shutting down
+2025-04-29 17:02:47,135 - uvicorn.error - INFO - Waiting for application shutdown.
+2025-04-29 17:02:47,138 - uvicorn.error - INFO - Application shutdown complete.
+2025-04-29 17:02:47,140 - uvicorn.error - INFO - Finished server process [21532]
+2025-04-29 17:02:47,953 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:02:48,308 - watchfiles.main - INFO - 5 changes detected
+2025-04-29 17:02:52,926 - uvicorn.error - INFO - Started server process [16848]
+2025-04-29 17:02:52,928 - uvicorn.error - INFO - Waiting for application startup.
+2025-04-29 17:02:52,929 - uvicorn.error - INFO - Application startup complete.
+2025-04-29 17:02:53,008 - routes.daily_tweet_generator - INFO - Starting tweet generation...
+2025-04-29 17:02:57,894 - httpx - INFO - HTTP Request: POST https://api.openai.com/v1/traces/ingest "HTTP/1.1 204 No Content"
+2025-04-29 17:02:59,926 - httpx - INFO - HTTP Request: POST https://api.openai.com/v1/responses "HTTP/1.1 200 OK"
+2025-04-29 17:02:59,965 - routes.daily_tweet_generator - INFO - Generated 5 formatted tweets
+2025-04-29 17:03:03,395 - httpx - INFO - HTTP Request: POST https://api.openai.com/v1/traces/ingest "HTTP/1.1 204 No Content"
+2025-04-29 17:03:23,346 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:03:23,347 - uvicorn.error - WARNING - WatchFiles detected changes in 'main.py'. Reloading...
+2025-04-29 17:03:23,437 - uvicorn.error - INFO - Shutting down
+2025-04-29 17:03:23,547 - uvicorn.error - INFO - Waiting for application shutdown.
+2025-04-29 17:03:23,551 - uvicorn.error - INFO - Application shutdown complete.
+2025-04-29 17:03:23,553 - uvicorn.error - INFO - Finished server process [16848]
+2025-04-29 17:03:24,360 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:03:24,864 - watchfiles.main - INFO - 5 changes detected
+2025-04-29 17:03:31,222 - uvicorn.error - INFO - Started server process [28596]
+2025-04-29 17:03:31,223 - uvicorn.error - INFO - Waiting for application startup.
+2025-04-29 17:03:31,224 - uvicorn.error - INFO - Application startup complete.
+2025-04-29 17:03:31,289 - routes.daily_tweet_generator - INFO - Starting tweet generation...
+2025-04-29 17:03:36,530 - httpx - INFO - HTTP Request: POST https://api.openai.com/v1/traces/ingest "HTTP/1.1 204 No Content"
+2025-04-29 17:03:36,944 - httpx - INFO - HTTP Request: POST https://api.openai.com/v1/responses "HTTP/1.1 200 OK"
+2025-04-29 17:03:36,973 - routes.daily_tweet_generator - INFO - Generated 5 formatted tweets
+2025-04-29 17:03:42,480 - httpx - INFO - HTTP Request: POST https://api.openai.com/v1/traces/ingest "HTTP/1.1 204 No Content"
+2025-04-29 17:03:59,858 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:03:59,858 - uvicorn.error - WARNING - WatchFiles detected changes in 'main.py'. Reloading...
+2025-04-29 17:03:59,970 - uvicorn.error - INFO - Shutting down
+2025-04-29 17:04:00,077 - uvicorn.error - INFO - Waiting for application shutdown.
+2025-04-29 17:04:00,079 - uvicorn.error - INFO - Application shutdown complete.
+2025-04-29 17:04:00,081 - uvicorn.error - INFO - Finished server process [28596]
+2025-04-29 17:04:00,812 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:04:01,168 - watchfiles.main - INFO - 5 changes detected
+2025-04-29 17:04:06,127 - uvicorn.error - INFO - Started server process [12748]
+2025-04-29 17:04:06,131 - uvicorn.error - INFO - Waiting for application startup.
+2025-04-29 17:04:06,133 - uvicorn.error - INFO - Application startup complete.
+2025-04-29 17:04:06,225 - routes.daily_tweet_generator - INFO - Starting tweet generation...
+2025-04-29 17:04:10,387 - httpx - INFO - HTTP Request: POST https://api.openai.com/v1/traces/ingest "HTTP/1.1 204 No Content"
+2025-04-29 17:04:13,911 - httpx - INFO - HTTP Request: POST https://api.openai.com/v1/responses "HTTP/1.1 200 OK"
+2025-04-29 17:04:13,939 - routes.daily_tweet_generator - INFO - Generated 5 formatted tweets
+2025-04-29 17:04:16,314 - httpx - INFO - HTTP Request: POST https://api.openai.com/v1/traces/ingest "HTTP/1.1 204 No Content"
+2025-04-29 17:04:29,133 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:04:29,134 - uvicorn.error - WARNING - WatchFiles detected changes in 'main.py'. Reloading...
+2025-04-29 17:04:29,205 - uvicorn.error - INFO - Shutting down
+2025-04-29 17:04:29,313 - uvicorn.error - INFO - Waiting for application shutdown.
+2025-04-29 17:04:29,316 - uvicorn.error - INFO - Application shutdown complete.
+2025-04-29 17:04:29,319 - uvicorn.error - INFO - Finished server process [12748]
+2025-04-29 17:04:30,019 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:04:30,376 - watchfiles.main - INFO - 5 changes detected
+2025-04-29 17:04:36,869 - uvicorn.error - INFO - Started server process [4304]
+2025-04-29 17:04:36,871 - uvicorn.error - INFO - Waiting for application startup.
+2025-04-29 17:04:36,873 - uvicorn.error - INFO - Application startup complete.
+2025-04-29 17:04:36,943 - routes.daily_tweet_generator - INFO - Starting tweet generation...
+2025-04-29 17:04:41,765 - httpx - INFO - HTTP Request: POST https://api.openai.com/v1/traces/ingest "HTTP/1.1 204 No Content"
+2025-04-29 17:04:44,430 - httpx - INFO - HTTP Request: POST https://api.openai.com/v1/responses "HTTP/1.1 200 OK"
+2025-04-29 17:04:44,446 - routes.daily_tweet_generator - INFO - Generated 5 formatted tweets
+2025-04-29 17:04:47,231 - httpx - INFO - HTTP Request: POST https://api.openai.com/v1/traces/ingest "HTTP/1.1 204 No Content"
+2025-04-29 17:05:22,166 - routes.daily_tweet_generator - INFO - Starting tweet generation...
+2025-04-29 17:05:23,296 - httpx - INFO - HTTP Request: POST https://api.openai.com/v1/traces/ingest "HTTP/1.1 204 No Content"
+2025-04-29 17:05:29,585 - httpx - INFO - HTTP Request: POST https://api.openai.com/v1/responses "HTTP/1.1 200 OK"
+2025-04-29 17:05:29,602 - routes.daily_tweet_generator - INFO - Generated 5 formatted tweets
+2025-04-29 17:05:33,954 - httpx - INFO - HTTP Request: POST https://api.openai.com/v1/traces/ingest "HTTP/1.1 204 No Content"
+2025-04-29 17:05:53,314 - routes.daily_tweet_generator - INFO - Starting tweet generation...
+2025-04-29 17:05:55,319 - httpx - INFO - HTTP Request: POST https://api.openai.com/v1/traces/ingest "HTTP/1.1 204 No Content"
+2025-04-29 17:06:01,584 - httpx - INFO - HTTP Request: POST https://api.openai.com/v1/responses "HTTP/1.1 200 OK"
+2025-04-29 17:06:01,589 - routes.daily_tweet_generator - INFO - Generated 5 formatted tweets
+2025-04-29 17:06:06,346 - httpx - INFO - HTTP Request: POST https://api.openai.com/v1/traces/ingest "HTTP/1.1 204 No Content"
+2025-04-29 17:06:54,992 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:06:57,180 - uvicorn.error - WARNING - WatchFiles detected changes in 'main.py'. Reloading...
+2025-04-29 17:06:57,525 - uvicorn.error - INFO - Shutting down
+2025-04-29 17:06:57,665 - uvicorn.error - INFO - Waiting for application shutdown.
+2025-04-29 17:06:57,678 - uvicorn.error - INFO - Application shutdown complete.
+2025-04-29 17:06:57,686 - uvicorn.error - INFO - Finished server process [4304]
+2025-04-29 17:07:04,318 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:07:10,444 - watchfiles.main - INFO - 5 changes detected
+2025-04-29 17:07:17,426 - uvicorn.error - INFO - Started server process [31516]
+2025-04-29 17:07:17,429 - uvicorn.error - INFO - Waiting for application startup.
+2025-04-29 17:07:17,431 - uvicorn.error - INFO - Application startup complete.
+2025-04-29 17:07:25,601 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:07:25,601 - uvicorn.error - WARNING - WatchFiles detected changes in 'main.py'. Reloading...
+2025-04-29 17:07:25,730 - uvicorn.error - INFO - Shutting down
+2025-04-29 17:07:25,839 - uvicorn.error - INFO - Waiting for application shutdown.
+2025-04-29 17:07:25,842 - uvicorn.error - INFO - Application shutdown complete.
+2025-04-29 17:07:25,843 - uvicorn.error - INFO - Finished server process [31516]
+2025-04-29 17:07:26,688 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:07:28,000 - watchfiles.main - INFO - 5 changes detected
+2025-04-29 17:07:32,789 - uvicorn.error - INFO - Started server process [20144]
+2025-04-29 17:07:32,790 - uvicorn.error - INFO - Waiting for application startup.
+2025-04-29 17:07:32,792 - uvicorn.error - INFO - Application startup complete.
+2025-04-29 17:07:32,860 - routes.daily_tweet_generator - INFO - Starting tweet generation...
+2025-04-29 17:07:38,207 - httpx - INFO - HTTP Request: POST https://api.openai.com/v1/traces/ingest "HTTP/1.1 204 No Content"
+2025-04-29 17:07:39,941 - httpx - INFO - HTTP Request: POST https://api.openai.com/v1/responses "HTTP/1.1 200 OK"
+2025-04-29 17:07:39,980 - routes.daily_tweet_generator - INFO - Generated 5 formatted tweets
+2025-04-29 17:07:44,140 - httpx - INFO - HTTP Request: POST https://api.openai.com/v1/traces/ingest "HTTP/1.1 204 No Content"
+2025-04-29 17:09:27,773 - routes.daily_tweet_generator - INFO - Starting tweet generation...
+2025-04-29 17:09:28,973 - routes.daily_tweet_generator - INFO - Starting tweet generation...
+2025-04-29 17:09:30,848 - httpx - INFO - HTTP Request: POST https://api.openai.com/v1/traces/ingest "HTTP/1.1 204 No Content"
+2025-04-29 17:09:30,993 - httpx - INFO - HTTP Request: POST https://api.openai.com/v1/responses "HTTP/1.1 502 Bad Gateway"
+2025-04-29 17:09:30,996 - openai._base_client - INFO - Retrying request to /responses in 0.452821 seconds
+2025-04-29 17:09:38,796 - httpx - INFO - HTTP Request: POST https://api.openai.com/v1/responses "HTTP/1.1 200 OK"
+2025-04-29 17:09:38,823 - routes.daily_tweet_generator - INFO - Generated 5 formatted tweets
+2025-04-29 17:09:41,306 - httpx - INFO - HTTP Request: POST https://api.openai.com/v1/traces/ingest "HTTP/1.1 204 No Content"
+2025-04-29 17:09:44,127 - httpx - INFO - HTTP Request: POST https://api.openai.com/v1/responses "HTTP/1.1 200 OK"
+2025-04-29 17:09:44,180 - routes.daily_tweet_generator - INFO - Generated 5 formatted tweets
+2025-04-29 17:09:47,300 - httpx - INFO - HTTP Request: POST https://api.openai.com/v1/traces/ingest "HTTP/1.1 204 No Content"
+2025-04-29 17:09:58,825 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:09:58,826 - uvicorn.error - WARNING - WatchFiles detected changes in 'main.py'. Reloading...
+2025-04-29 17:09:58,923 - uvicorn.error - INFO - Shutting down
+2025-04-29 17:09:59,034 - uvicorn.error - INFO - Waiting for application shutdown.
+2025-04-29 17:09:59,041 - uvicorn.error - INFO - Application shutdown complete.
+2025-04-29 17:09:59,046 - uvicorn.error - INFO - Finished server process [20144]
+2025-04-29 17:10:00,067 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:10:00,626 - watchfiles.main - INFO - 5 changes detected
+2025-04-29 17:10:07,731 - uvicorn.error - INFO - Started server process [30284]
+2025-04-29 17:10:07,732 - uvicorn.error - INFO - Waiting for application startup.
+2025-04-29 17:10:07,733 - uvicorn.error - INFO - Application startup complete.
+2025-04-29 17:10:35,996 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:10:35,996 - uvicorn.error - WARNING - WatchFiles detected changes in 'main.py'. Reloading...
+2025-04-29 17:10:36,779 - uvicorn.error - INFO - Shutting down
+2025-04-29 17:10:38,977 - routes.daily_tweet_generator - INFO - Starting tweet generation...
+2025-04-29 17:10:38,977 - uvicorn.error - INFO - Waiting for connections to close. (CTRL+C to force quit)
+2025-04-29 17:10:40,331 - routes.daily_tweet_generator - INFO - Starting tweet generation...
+2025-04-29 17:10:42,367 - httpx - INFO - HTTP Request: POST https://api.openai.com/v1/traces/ingest "HTTP/1.1 204 No Content"
+2025-04-29 17:10:46,748 - httpx - INFO - HTTP Request: POST https://api.openai.com/v1/responses "HTTP/1.1 200 OK"
+2025-04-29 17:10:46,760 - routes.daily_tweet_generator - INFO - Generated 5 formatted tweets
+2025-04-29 17:10:47,928 - httpx - INFO - HTTP Request: POST https://api.openai.com/v1/traces/ingest "HTTP/1.1 204 No Content"
+2025-04-29 17:10:48,885 - httpx - INFO - HTTP Request: POST https://api.openai.com/v1/responses "HTTP/1.1 200 OK"
+2025-04-29 17:10:48,889 - routes.daily_tweet_generator - INFO - Generated 5 formatted tweets
+2025-04-29 17:10:53,792 - httpx - INFO - HTTP Request: POST https://api.openai.com/v1/traces/ingest "HTTP/1.1 204 No Content"
+2025-04-29 17:11:01,515 - uvicorn.error - INFO - Waiting for application shutdown.
+2025-04-29 17:11:01,519 - uvicorn.error - INFO - Application shutdown complete.
+2025-04-29 17:11:01,526 - uvicorn.error - INFO - Finished server process [30284]
+2025-04-29 17:11:02,193 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:11:02,551 - watchfiles.main - INFO - 5 changes detected
+2025-04-29 17:11:06,759 - uvicorn.error - INFO - Started server process [19112]
+2025-04-29 17:11:06,761 - uvicorn.error - INFO - Waiting for application startup.
+2025-04-29 17:11:06,763 - uvicorn.error - INFO - Application startup complete.
+2025-04-29 17:11:57,563 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:11:57,921 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:11:58,279 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:11:58,631 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:11:58,988 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:11:59,344 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:11:59,701 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:12:00,058 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:12:00,414 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:12:00,772 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:12:01,128 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:12:01,486 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:12:01,842 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:12:02,199 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:12:02,553 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:12:02,911 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:12:03,268 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:12:03,626 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:12:03,982 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:12:04,341 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:12:04,697 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:12:05,053 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:12:05,411 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:12:05,767 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:12:06,121 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:12:06,476 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:12:06,832 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:12:07,189 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:12:07,548 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:12:07,905 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:12:08,262 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:12:08,619 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:12:08,975 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:12:09,332 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:12:09,690 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:12:10,047 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:12:10,404 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:12:10,760 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:12:11,115 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:12:11,471 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:12:11,827 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:12:12,182 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:12:12,537 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:12:12,894 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:12:13,250 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:12:13,611 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:12:13,975 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:12:14,333 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:12:14,690 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:12:15,045 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:12:15,403 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:12:15,760 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:12:16,116 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:12:16,472 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:12:16,828 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:12:17,189 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:12:17,555 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:12:17,914 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:12:18,270 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:12:18,628 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:12:18,983 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:12:19,340 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:12:19,695 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:12:20,050 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:12:20,407 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:12:20,762 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:12:21,120 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:12:21,478 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:12:21,835 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:12:22,190 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:12:22,546 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:12:22,902 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:12:23,261 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:12:23,616 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:12:23,973 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:12:24,329 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:12:24,686 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:12:25,044 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:12:25,404 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:12:25,759 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:12:26,115 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:12:26,476 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:12:26,842 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:12:27,200 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:12:27,555 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:12:27,912 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:12:28,266 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:12:28,626 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:12:28,983 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:12:29,342 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:12:29,699 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:12:30,055 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:12:30,410 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:12:30,766 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:12:31,123 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:12:31,476 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:12:31,840 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:12:32,205 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:12:32,561 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:12:32,918 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:12:33,271 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:12:33,626 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:12:33,983 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:12:34,340 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:12:34,695 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:12:35,050 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:12:35,407 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:12:35,765 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:12:36,124 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:12:36,482 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:12:36,838 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:12:37,196 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:12:37,553 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:12:37,911 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:12:38,268 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:12:38,623 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:12:38,979 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:12:39,335 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:12:39,694 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:12:40,049 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:12:40,407 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:12:40,764 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:12:41,121 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:12:41,480 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:12:41,838 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:12:42,193 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:12:42,551 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:12:42,911 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:12:43,272 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:12:43,624 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:12:43,982 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:12:44,340 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:12:44,699 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:12:45,056 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:12:45,414 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:12:45,771 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:12:46,128 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:12:46,485 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:12:46,842 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:12:47,201 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:12:47,558 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:12:47,917 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:12:48,272 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:12:48,629 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:12:48,988 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:12:49,342 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:12:49,699 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:12:50,053 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:12:50,410 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:12:50,768 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:12:51,125 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:12:51,481 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:12:51,835 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:12:52,192 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:12:52,548 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:12:52,905 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:12:53,260 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:12:53,617 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:12:53,972 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:12:54,329 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:12:54,684 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:12:55,042 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:12:55,398 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:12:55,755 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:12:56,111 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:12:56,465 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:12:56,829 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:12:57,184 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:12:57,538 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:12:57,893 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:12:58,251 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:12:58,608 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:12:58,966 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:12:59,321 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:12:59,678 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:13:00,036 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:13:00,392 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:13:00,748 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:13:01,103 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:13:01,462 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:13:01,817 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:13:02,170 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:13:02,527 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:13:02,878 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:13:03,234 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:13:03,589 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:13:03,947 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:13:04,300 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:13:04,655 - watchfiles.main - INFO - 2 changes detected
+2025-04-29 17:13:04,655 - uvicorn.error - WARNING - WatchFiles detected changes in 'main.py'. Reloading...
+2025-04-29 17:13:04,786 - uvicorn.error - INFO - Shutting down
+2025-04-29 17:13:04,909 - uvicorn.error - INFO - Waiting for application shutdown.
+2025-04-29 17:13:04,910 - uvicorn.error - INFO - Application shutdown complete.
+2025-04-29 17:13:04,911 - uvicorn.error - INFO - Finished server process [19112]
+2025-04-29 17:13:05,632 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:13:05,987 - watchfiles.main - INFO - 5 changes detected
+2025-04-29 17:13:08,919 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:13:09,277 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:13:09,635 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:13:09,992 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:13:10,350 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:13:10,567 - uvicorn.error - INFO - Started server process [16512]
+2025-04-29 17:13:10,569 - uvicorn.error - INFO - Waiting for application startup.
+2025-04-29 17:13:10,570 - uvicorn.error - INFO - Application startup complete.
+2025-04-29 17:13:10,702 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:13:11,068 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:13:11,431 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:13:11,787 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:13:12,145 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:13:12,500 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:13:12,857 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:13:13,215 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:13:13,570 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:13:13,927 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:13:14,286 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:13:14,642 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:13:14,999 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:13:15,358 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:13:15,711 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:13:16,068 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:13:16,424 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:13:16,780 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:13:17,134 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:13:17,490 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:13:17,847 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:13:18,204 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:13:18,563 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:13:18,919 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:13:19,276 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:13:19,633 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:13:19,989 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:13:20,346 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:13:20,702 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:13:21,060 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:13:21,418 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:13:21,773 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:13:22,127 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:13:22,484 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:13:22,841 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:13:23,199 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:13:23,555 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:13:23,913 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:13:24,271 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:13:24,629 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:13:24,988 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:13:25,345 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:13:25,702 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:13:26,057 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:13:26,415 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:13:26,769 - watchfiles.main - INFO - 2 changes detected
+2025-04-29 17:13:26,769 - uvicorn.error - WARNING - WatchFiles detected changes in 'main.py'. Reloading...
+2025-04-29 17:13:26,898 - uvicorn.error - INFO - Shutting down
+2025-04-29 17:13:27,007 - uvicorn.error - INFO - Waiting for application shutdown.
+2025-04-29 17:13:27,008 - uvicorn.error - INFO - Application shutdown complete.
+2025-04-29 17:13:27,010 - uvicorn.error - INFO - Finished server process [16512]
+2025-04-29 17:13:27,746 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:13:28,103 - watchfiles.main - INFO - 5 changes detected
+2025-04-29 17:13:31,915 - uvicorn.error - INFO - Started server process [28688]
+2025-04-29 17:13:31,917 - uvicorn.error - INFO - Waiting for application startup.
+2025-04-29 17:13:31,918 - uvicorn.error - INFO - Application startup complete.
+2025-04-29 17:13:50,739 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:13:50,739 - uvicorn.error - WARNING - WatchFiles detected changes in 'main.py'. Reloading...
+2025-04-29 17:13:50,843 - uvicorn.error - INFO - Shutting down
+2025-04-29 17:13:50,952 - uvicorn.error - INFO - Waiting for application shutdown.
+2025-04-29 17:13:50,953 - uvicorn.error - INFO - Application shutdown complete.
+2025-04-29 17:13:50,955 - uvicorn.error - INFO - Finished server process [28688]
+2025-04-29 17:13:51,704 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:13:52,062 - watchfiles.main - INFO - 5 changes detected
+2025-04-29 17:13:53,745 - watchfiles.main - INFO - 2 changes detected
+2025-04-29 17:13:53,745 - uvicorn.error - WARNING - WatchFiles detected changes in 'main.py'. Reloading...
+2025-04-29 17:13:56,941 - uvicorn.error - INFO - Started server process [22032]
+2025-04-29 17:13:56,943 - uvicorn.error - INFO - Waiting for application startup.
+2025-04-29 17:13:56,945 - uvicorn.error - INFO - Application startup complete.
+2025-04-29 17:13:57,006 - uvicorn.error - ERROR - Traceback (most recent call last):
+  File "C:\Users\abdul\AppData\Local\Programs\Python\Python312\Lib\asyncio\runners.py", line 118, in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\abdul\AppData\Local\Programs\Python\Python312\Lib\asyncio\base_events.py", line 691, in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+asyncio.exceptions.CancelledError
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\abdul\AppData\Local\Programs\Python\Python312\Lib\asyncio\runners.py", line 195, in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+  File "C:\Users\abdul\AppData\Local\Programs\Python\Python312\Lib\asyncio\runners.py", line 123, in run
+    raise KeyboardInterrupt()
+KeyboardInterrupt
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\abdul\OneDrive\Documents\GitHub\adkagentbackendDevelopment\.venv\Lib\site-packages\starlette\routing.py", line 699, in lifespan
+    await receive()
+  File "C:\Users\abdul\OneDrive\Documents\GitHub\adkagentbackendDevelopment\.venv\Lib\site-packages\uvicorn\lifespan\on.py", line 137, in receive
+    return await self.receive_queue.get()
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\abdul\AppData\Local\Programs\Python\Python312\Lib\asyncio\queues.py", line 158, in get
+    await getter
+asyncio.exceptions.CancelledError
+
+2025-04-29 17:13:57,805 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:13:58,361 - watchfiles.main - INFO - 5 changes detected
+2025-04-29 17:14:02,741 - uvicorn.error - INFO - Started server process [30928]
+2025-04-29 17:14:02,744 - uvicorn.error - INFO - Waiting for application startup.
+2025-04-29 17:14:02,745 - uvicorn.error - INFO - Application startup complete.
+2025-04-29 17:14:27,308 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:14:27,310 - uvicorn.error - WARNING - WatchFiles detected changes in 'main.py'. Reloading...
+2025-04-29 17:14:27,430 - uvicorn.error - INFO - Shutting down
+2025-04-29 17:14:27,538 - uvicorn.error - INFO - Waiting for application shutdown.
+2025-04-29 17:14:27,542 - uvicorn.error - INFO - Application shutdown complete.
+2025-04-29 17:14:27,545 - uvicorn.error - INFO - Finished server process [30928]
+2025-04-29 17:14:28,182 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:14:28,623 - watchfiles.main - INFO - 5 changes detected
+2025-04-29 17:14:34,444 - uvicorn.error - INFO - Started server process [11840]
+2025-04-29 17:14:34,447 - uvicorn.error - INFO - Waiting for application startup.
+2025-04-29 17:14:34,448 - uvicorn.error - INFO - Application startup complete.
+2025-04-29 17:15:27,236 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:15:27,236 - uvicorn.error - WARNING - WatchFiles detected changes in 'main.py'. Reloading...
+2025-04-29 17:15:27,291 - uvicorn.error - INFO - Shutting down
+2025-04-29 17:15:27,400 - uvicorn.error - INFO - Waiting for application shutdown.
+2025-04-29 17:15:27,403 - uvicorn.error - INFO - Application shutdown complete.
+2025-04-29 17:15:27,404 - uvicorn.error - INFO - Finished server process [11840]
+2025-04-29 17:15:28,043 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:15:28,399 - watchfiles.main - INFO - 5 changes detected
+2025-04-29 17:15:30,181 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:15:30,181 - uvicorn.error - WARNING - WatchFiles detected changes in 'main.py'. Reloading...
+2025-04-29 17:15:32,783 - uvicorn.error - INFO - Started server process [29012]
+2025-04-29 17:15:32,785 - uvicorn.error - INFO - Waiting for application startup.
+2025-04-29 17:15:32,786 - uvicorn.error - INFO - Application startup complete.
+2025-04-29 17:15:32,880 - uvicorn.error - ERROR - Traceback (most recent call last):
+  File "C:\Users\abdul\AppData\Local\Programs\Python\Python312\Lib\asyncio\runners.py", line 118, in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\abdul\AppData\Local\Programs\Python\Python312\Lib\asyncio\base_events.py", line 691, in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+asyncio.exceptions.CancelledError
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\abdul\AppData\Local\Programs\Python\Python312\Lib\asyncio\runners.py", line 195, in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+  File "C:\Users\abdul\AppData\Local\Programs\Python\Python312\Lib\asyncio\runners.py", line 123, in run
+    raise KeyboardInterrupt()
+KeyboardInterrupt
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\abdul\OneDrive\Documents\GitHub\adkagentbackendDevelopment\.venv\Lib\site-packages\starlette\routing.py", line 699, in lifespan
+    await receive()
+  File "C:\Users\abdul\OneDrive\Documents\GitHub\adkagentbackendDevelopment\.venv\Lib\site-packages\uvicorn\lifespan\on.py", line 137, in receive
+    return await self.receive_queue.get()
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\abdul\AppData\Local\Programs\Python\Python312\Lib\asyncio\queues.py", line 158, in get
+    await getter
+asyncio.exceptions.CancelledError
+
+2025-04-29 17:15:33,735 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:15:34,096 - watchfiles.main - INFO - 5 changes detected
+2025-04-29 17:15:40,342 - uvicorn.error - INFO - Started server process [30696]
+2025-04-29 17:15:40,344 - uvicorn.error - INFO - Waiting for application startup.
+2025-04-29 17:15:40,345 - uvicorn.error - INFO - Application startup complete.
+2025-04-29 17:16:57,590 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:16:57,944 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:16:58,300 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:16:58,657 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:16:59,015 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:16:59,374 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:16:59,731 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:17:00,086 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:17:00,477 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:17:00,832 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:17:01,190 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:17:01,591 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:17:01,950 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:17:02,306 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:17:02,663 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:17:03,017 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:17:03,375 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:17:03,732 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:17:04,087 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:17:04,444 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:17:04,800 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:17:05,157 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:17:05,512 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:17:05,872 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:17:06,250 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:17:06,610 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:17:06,966 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:17:07,324 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:17:07,686 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:17:08,040 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:17:08,395 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:17:08,750 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:17:09,106 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:17:09,464 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:17:09,819 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:17:10,176 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:17:10,534 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:17:10,891 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:17:11,246 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:17:11,603 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:17:11,957 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:17:12,317 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:17:12,671 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:17:13,026 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:17:13,384 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:17:13,739 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:17:14,094 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:17:14,451 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:17:14,809 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:17:15,168 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:17:15,525 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:17:15,881 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:17:16,239 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:17:16,597 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:17:16,962 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:17:17,326 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:17:17,684 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:17:18,038 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:17:18,432 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:17:18,798 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:17:19,153 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:17:19,513 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:17:19,871 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:17:20,228 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:17:20,583 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:17:20,942 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:17:21,297 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:17:21,653 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:17:22,010 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:17:22,367 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:17:22,725 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:17:23,081 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:17:23,441 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:17:23,797 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:17:24,154 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:17:24,511 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:17:24,868 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:17:25,228 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:17:25,583 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:17:25,938 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:17:26,296 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:17:26,651 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:17:27,004 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:17:27,361 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:17:27,716 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:17:28,075 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:17:28,466 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:17:28,819 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:17:29,172 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:17:29,528 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:17:29,886 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:17:30,245 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:17:30,601 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:17:30,994 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:17:31,348 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:17:31,707 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:17:32,060 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:17:32,417 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:17:32,797 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:17:33,160 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:17:33,517 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:17:33,873 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:17:34,230 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:17:34,585 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:17:34,938 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:17:35,296 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:17:35,651 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:17:36,007 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:17:36,366 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:17:36,721 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:17:37,080 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:17:37,438 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:17:37,822 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:17:38,183 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:17:38,541 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:17:38,899 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:17:39,258 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:17:39,616 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:17:39,976 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:17:40,356 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:17:40,718 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:17:41,106 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:17:41,461 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:17:41,819 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:17:42,177 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:17:42,532 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:17:42,890 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:17:43,249 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:17:43,606 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:17:43,972 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:17:44,330 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:17:44,689 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:17:45,047 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:17:45,404 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:17:45,774 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:17:46,203 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:17:47,650 - routes.daily_tweet_generator - INFO - Starting tweet generation...
+2025-04-29 17:17:50,958 - httpx - INFO - HTTP Request: POST https://api.openai.com/v1/traces/ingest "HTTP/1.1 204 No Content"
+2025-04-29 17:17:59,384 - httpx - INFO - HTTP Request: POST https://api.openai.com/v1/responses "HTTP/1.1 200 OK"
+2025-04-29 17:17:59,438 - routes.daily_tweet_generator - INFO - Generated 5 formatted tweets
+2025-04-29 17:18:01,446 - httpx - INFO - HTTP Request: POST https://api.openai.com/v1/traces/ingest "HTTP/1.1 204 No Content"
+2025-04-29 17:18:02,793 - routes.daily_tweet_generator - INFO - Starting tweet generation...
+2025-04-29 17:18:03,718 - routes.daily_tweet_generator - INFO - Starting tweet generation...
+2025-04-29 17:18:07,391 - httpx - INFO - HTTP Request: POST https://api.openai.com/v1/traces/ingest "HTTP/1.1 204 No Content"
+2025-04-29 17:18:12,595 - httpx - INFO - HTTP Request: POST https://api.openai.com/v1/responses "HTTP/1.1 200 OK"
+2025-04-29 17:18:12,598 - routes.daily_tweet_generator - INFO - Generated 5 formatted tweets
+2025-04-29 17:18:13,918 - httpx - INFO - HTTP Request: POST https://api.openai.com/v1/responses "HTTP/1.1 200 OK"
+2025-04-29 17:18:13,920 - routes.daily_tweet_generator - INFO - Generated 5 formatted tweets
+2025-04-29 17:18:18,431 - httpx - INFO - HTTP Request: POST https://api.openai.com/v1/traces/ingest "HTTP/1.1 204 No Content"
+2025-04-29 17:18:18,524 - routes.daily_tweet_generator - INFO - Starting tweet generation...
+2025-04-29 17:18:18,526 - routes.daily_tweet_generator - INFO - Starting tweet generation...
+2025-04-29 17:18:24,315 - httpx - INFO - HTTP Request: POST https://api.openai.com/v1/traces/ingest "HTTP/1.1 204 No Content"
+2025-04-29 17:18:26,635 - httpx - INFO - HTTP Request: POST https://api.openai.com/v1/responses "HTTP/1.1 200 OK"
+2025-04-29 17:18:27,946 - routes.daily_tweet_generator - INFO - Starting tweet generation...
+2025-04-29 17:18:27,949 - httpx - INFO - HTTP Request: POST https://api.openai.com/v1/responses "HTTP/1.1 200 OK"
+2025-04-29 17:18:27,956 - routes.daily_tweet_generator - INFO - Generated 5 formatted tweets
+2025-04-29 17:18:29,252 - routes.daily_tweet_generator - INFO - Generated 5 formatted tweets
+2025-04-29 17:18:29,729 - httpx - INFO - HTTP Request: POST https://api.openai.com/v1/traces/ingest "HTTP/1.1 204 No Content"
+2025-04-29 17:18:38,309 - routes.daily_tweet_generator - INFO - Starting tweet generation...
+2025-04-29 17:18:39,266 - routes.daily_tweet_generator - INFO - Starting tweet generation...
+2025-04-29 17:18:40,779 - httpx - INFO - HTTP Request: POST https://api.openai.com/v1/traces/ingest "HTTP/1.1 204 No Content"
+2025-04-29 17:18:41,097 - httpx - INFO - HTTP Request: POST https://api.openai.com/v1/responses "HTTP/1.1 200 OK"
+2025-04-29 17:18:41,115 - routes.daily_tweet_generator - INFO - Generated 5 formatted tweets
+2025-04-29 17:18:46,774 - httpx - INFO - HTTP Request: POST https://api.openai.com/v1/traces/ingest "HTTP/1.1 204 No Content"
+2025-04-29 17:18:48,208 - httpx - INFO - HTTP Request: POST https://api.openai.com/v1/responses "HTTP/1.1 200 OK"
+2025-04-29 17:18:48,226 - routes.daily_tweet_generator - INFO - Generated 5 formatted tweets
+2025-04-29 17:18:49,849 - httpx - INFO - HTTP Request: POST https://api.openai.com/v1/responses "HTTP/1.1 200 OK"
+2025-04-29 17:18:49,852 - routes.daily_tweet_generator - INFO - Generated 5 formatted tweets
+2025-04-29 17:18:52,304 - httpx - INFO - HTTP Request: POST https://api.openai.com/v1/traces/ingest "HTTP/1.1 204 No Content"
+2025-04-29 17:19:59,294 - routes.daily_tweet_generator - INFO - Starting tweet generation...
+2025-04-29 17:19:59,295 - routes.daily_tweet_generator - INFO - Starting tweet generation...
+2025-04-29 17:20:03,751 - httpx - INFO - HTTP Request: POST https://api.openai.com/v1/traces/ingest "HTTP/1.1 204 No Content"
+2025-04-29 17:20:04,212 - httpx - INFO - HTTP Request: POST https://api.openai.com/v1/responses "HTTP/1.1 502 Bad Gateway"
+2025-04-29 17:20:04,217 - openai._base_client - INFO - Retrying request to /responses in 0.471758 seconds
+2025-04-29 17:20:06,449 - httpx - INFO - HTTP Request: POST https://api.openai.com/v1/responses "HTTP/1.1 200 OK"
+2025-04-29 17:20:06,451 - routes.daily_tweet_generator - INFO - Generated 5 formatted tweets
+2025-04-29 17:20:09,309 - httpx - INFO - HTTP Request: POST https://api.openai.com/v1/traces/ingest "HTTP/1.1 204 No Content"
+2025-04-29 17:20:11,998 - httpx - INFO - HTTP Request: POST https://api.openai.com/v1/responses "HTTP/1.1 200 OK"
+2025-04-29 17:20:12,000 - routes.daily_tweet_generator - INFO - Generated 5 formatted tweets
+2025-04-29 17:20:15,456 - httpx - INFO - HTTP Request: POST https://api.openai.com/v1/traces/ingest "HTTP/1.1 204 No Content"
+2025-04-29 17:20:45,503 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:20:45,858 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:20:46,230 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:20:46,586 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:20:46,942 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:20:47,297 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:20:47,654 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:20:48,010 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:20:48,368 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:20:48,724 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:20:49,083 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:20:49,443 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:20:49,803 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:20:50,157 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:20:50,515 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:20:50,873 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:20:51,228 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:20:51,583 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:20:51,940 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:20:52,297 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:20:52,651 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:20:53,009 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:20:53,365 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:20:53,722 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:20:54,080 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:20:54,437 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:20:54,793 - watchfiles.main - INFO - 1 change detected
+2025-04-29 17:20:55,152 - watchfiles.main - INFO - 1 change detected
