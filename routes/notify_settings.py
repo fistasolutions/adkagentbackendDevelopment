@@ -186,7 +186,7 @@ async def get_persona_notify_settings(user_id: int, username: str):
         conn = get_connection()
         with conn.cursor() as cursor:
             # Check if twitter account exists
-            cursor.execute("SELECT account_id FROM twitter_account WHERE username = %s", (username,))
+            cursor.execute("SELECT account_id FROM twitter_account WHERE username = %s AND user_id = %s", (username, user_id))
             account_result = cursor.fetchone()
             if not account_result:
                 raise HTTPException(status_code=404, detail="Twitter account not found")
