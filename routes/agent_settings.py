@@ -19,6 +19,7 @@ class AgentSettingResponse(BaseModel):
     id: int
     user_id: int
     character_settings: str
+    account_id: int
     created_at: datetime
 
 @router.post("/agent-settings", response_model=AgentSettingResponse)
@@ -116,12 +117,19 @@ async def get_agent_setting(setting_id: int):
     finally:
         conn.close()
 
-@router.get("/agent-settings/user/{user_id}", response_model=List[AgentSettingResponse])
-async def get_user_agent_settings(user_id: int):
+@router.get("/agent-settings/user/{user_id}/{username}", response_model=List[AgentSettingResponse])
+async def get_user_agent_settings(user_id: int, username: str):
     try:
         conn = get_connection()
         with conn.cursor() as cursor:
-            cursor.execute("SELECT id, user_id, character_settings, account_id, created_at FROM personas WHERE user_id = %s", (user_id,))
+            # Get account_id from username
+            cursor.execute("SELECT account_id FROM twitter_account WHERE username = %s", (username,))
+            account_result = cursor.fetchone()
+            if not account_result:
+                raise HTTPException(status_code=404, detail="Twitter account not found")
+            account_id = account_result[0]
+            
+            cursor.execute("SELECT id, user_id, character_settings, account_id, created_at FROM personas WHERE user_id = %s AND account_id = %s", (user_id, account_id))
             settings = cursor.fetchall()
             if not settings:
                 return []
@@ -152,8 +160,8 @@ async def update_agent_setting(setting_id: int, agent_setting: AgentSettingUpdat
             
             # Update setting
             cursor.execute(
-                "UPDATE personas SET character_settings = %s, account_id = %s WHERE id = %s RETURNING id, user_id, character_settings, account_id, created_at",
-                (agent_setting.character_settings, agent_setting.account_id, setting_id)
+                "UPDATE personas SET character_settings = %s WHERE id = %s RETURNING id, user_id, character_settings, account_id, created_at",
+                (agent_setting.character_settings, setting_id)
             )
             updated_setting = cursor.fetchone()
             conn.commit()
