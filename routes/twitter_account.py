@@ -22,7 +22,7 @@ class AccountResponse(BaseModel):
     updated_at: datetime
 
 
-@router.post("/twitter/accounts/", response_model=AccountResponse)
+@router.post("/twitter/accounts", response_model=AccountResponse)
 async def create_account(account: AccountCreate, response: Response):
     conn = get_connection()
     try:
