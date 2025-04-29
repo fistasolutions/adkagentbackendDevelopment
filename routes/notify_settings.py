@@ -37,7 +37,7 @@ class NotifySettingResponse(BaseModel):
     account_id: int
     created_at: datetime
 
-@router.post("/notify-settings/", response_model=NotifySettingResponse)
+@router.post("/notify-settings", response_model=NotifySettingResponse)
 async def create_notify_setting(notify_setting: NotifySettingCreate):
     try:
         conn = get_connection()
