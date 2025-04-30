@@ -24,7 +24,6 @@ HEADERS = {"Authorization": f"Bearer {BEARER_TOKEN}"}
 tweet_cache = {}
 CACHE_TTL = 60 * 5  # Cache for 5 minutes
 
-# Configure HTTP client with timeouts
 TIMEOUT = httpx.Timeout(30.0, connect=10.0)  # 30 seconds total, 10 seconds for connection
 CLIENT_KWARGS = {
     "timeout": TIMEOUT,
@@ -89,7 +88,6 @@ async def get_tweet_replies(tweet_id: str, author_username: str):
                     "profile_image": user.get("profile_image_url")
                 }
             })
-        print(replies)
         return replies
     
 @router.get("/analyze-user/")

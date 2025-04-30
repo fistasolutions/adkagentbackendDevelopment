@@ -72,6 +72,7 @@ async def post_tweet(tweet: TweetRequest):
         # Check if the request was successful
         if response.status_code == 201:
             # Update post status in database
+            tweet_id = response.json()["data"]["id"]
             conn = get_connection()
             try:
                 with conn.cursor() as cursor:
@@ -79,11 +80,12 @@ async def post_tweet(tweet: TweetRequest):
                         """
                         UPDATE posts 
                         SET status = 'posted', 
-                            posted_time = NOW() 
+                            posted_time = NOW(),
+                            posted_id = %s
                         WHERE id = %s
-                        RETURNING id, status, posted_time
+                        RETURNING id, status, posted_time, posted_id
                         """,
-                        (tweet.post_id,)
+                        (tweet_id, tweet.post_id)
                     )
                     updated_post = cursor.fetchone()
                     conn.commit()
@@ -94,7 +96,8 @@ async def post_tweet(tweet: TweetRequest):
                         "post": {
                             "id": updated_post[0],
                             "status": updated_post[1],
-                            "posted_time": updated_post[2]
+                            "posted_time": updated_post[2],
+                            "posted_id": updated_post[3]
                         }
                     }
             except Exception as db_error:
