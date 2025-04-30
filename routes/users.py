@@ -26,42 +26,6 @@ class LoginResponse(BaseModel):
     enterprise_id: str
     message: str
 
-# @router.post("/users/", response_model=UserResponse)
-# async def create_user(user: UserCreate):
-#     try:
-#         conn = get_connection()
-#         with conn.cursor() as cursor:
-#             # Check if email already exists
-#             cursor.execute("SELECT user_id FROM users WHERE email = %s", (user.email,))
-#             if cursor.fetchone():
-#                 raise HTTPException(status_code=400, detail="Email already registered")
-            
-#             # Generate enterprise_id if not provided
-#             if not user.enterprise_id:
-#                 user.enterprise_id = str(random.randint(100000, 999999))
-            
-#             # Hash the password
-#             hashed_password = bcrypt.hashpw(user.password.encode('utf-8'), bcrypt.gensalt())
-            
-#             cursor.execute(
-#                 "INSERT INTO users (fullname, email, password, enterprise_id) VALUES (%s, %s, %s, %s) RETURNING user_id",
-#                 (user.fullname, user.email, hashed_password.decode('utf-8'), user.enterprise_id)
-#             )
-#             user_id = cursor.fetchone()[0]
-#             conn.commit()
-            
-#             return {
-#                 "user_id": user_id,
-#                 "fullname": user.fullname,
-#                 "email": user.email,
-#                 "enterprise_id": user.enterprise_id
-#             }
-#     except Exception as e:
-#         raise HTTPException(status_code=500, detail=str(e))
-#     finally:
-#         conn.close()
-
-
 @router.post("/users/", response_model=UserResponse)
 async def create_user(user: UserCreate, response: Response):
     conn = get_connection()
