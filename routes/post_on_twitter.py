@@ -43,7 +43,7 @@ TWITTER_API_SECRET = os.getenv("TWITTER_API_SECRET")
 TWITTER_ACCESS_TOKEN = os.getenv("TWITTER_ACCESS_TOKEN")
 TWITTER_ACCESS_TOKEN_SECRET = os.getenv("TWITTER_ACCESS_TOKEN_SECRET")
 
-@router.post("/post_tweet/")
+@router.post("/post_tweet")
 async def post_tweet(tweet: TweetRequest):
     try:
         # OAuth 1.0a authentication
