@@ -206,9 +206,8 @@ COMPETITOR_TEST_DATA = {
 }
 
 # Core agents with handoffs defined inside their bodies
-tweet_agent = Agent(
-    name="Tweet Agent",
-    instructions="""You are a professional tweet generation expert specializing in creating natural, human-like content with an educated perspective. Your role is to:
+def get_tweet_agent_instructions(character_settings: str = None) -> str:
+    base_instructions = """You are a professional tweet generation expert specializing in creating natural, human-like content with an educated perspective. Your role is to:
     1. Generate EXACTLY FIVE unique, natural-sounding tweets that read as if written by an educated professional
     2. Each tweet must follow these guidelines:
        - Write in a natural, conversational tone while maintaining professionalism
@@ -235,6 +234,7 @@ tweet_agent = Agent(
        - Include personal observations and experiences
        - Maintain a balance between professional and approachable
        - Show personality while staying within professional boundaries
+       - Show personality while staying within professional boundaries
     5. Return the tweets in the following JSON format:
        {
          "tweets": [
@@ -250,7 +250,26 @@ tweet_agent = Agent(
          "total_impact_score": 427.5,
          "average_reach_estimate": 5000,
          "overall_engagement_potential": 0.12
-       }""",
+       }
+       """
+    
+    if character_settings:
+        return f"""{base_instructions}
+
+    Additionally, you must follow these character-specific guidelines:
+    {character_settings}
+    
+    - Show personality while staying within professional boundaries
+    5. Return the tweets in the following JSON format:
+     
+
+    Your tweets should reflect this character's personality, tone, and style while maintaining professional standards."""
+    
+    return base_instructions
+
+tweet_agent = Agent(
+    name="Tweet Agent",
+    instructions=get_tweet_agent_instructions(),
     output_type=TweetsOutput,
     handoffs=[
         "Role Model Analysis Agent",
@@ -397,15 +416,32 @@ async def generate_tweets(request: TweetRequest):
     """Generate five high-quality tweets using the Tweet Agent."""
     print("Generating tweets...")
     try:
-        # Check for recent tweets first
+        # First check for character settings
         conn = get_connection()
         try:
             with conn.cursor() as cursor:
-                # Get current timestamp and 30 minutes ago
+                # Check for character settings
+                cursor.execute(
+                    """
+                    SELECT character_settings 
+                    FROM personas 
+                    WHERE user_id = %s 
+                    AND account_id = %s
+                    """,
+                    (request.user_id, request.account_id)
+                )
+                character_settings = cursor.fetchone()
+                
+                if not character_settings:
+                    raise HTTPException(
+                        status_code=400,
+                        detail="Character settings not found. Please set up your character settings before generating tweets."
+                    )
+                
+                # Then check for recent tweets
                 current_time = datetime.utcnow()
                 thirty_minutes_ago = current_time - timedelta(minutes=30)
                 
-                # Check for recent tweets
                 cursor.execute(
                     """
                     SELECT COUNT(*) 
@@ -426,7 +462,10 @@ async def generate_tweets(request: TweetRequest):
         finally:
             conn.close()
 
-        # If no recent tweets, proceed with generation
+        # If character settings exist and no recent tweets, proceed with generation
+        # Update agent with character-specific instructions
+        tweet_agent.instructions = get_tweet_agent_instructions(character_settings[0])
+        
         run_result = await Runner.run(tweet_agent, input="generate 5 tweets")
         result = run_result.final_output
         
