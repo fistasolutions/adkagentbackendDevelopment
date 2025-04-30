@@ -488,17 +488,18 @@ async def generate_tweets(request: TweetRequest):
                 for tweet in result.tweets:
                     cursor.execute(
                         """
-                        INSERT INTO posts (content, created_at, user_id, account_id)
-                        VALUES (%s, %s, %s, %s)
-                        RETURNING id, content, created_at
+                        INSERT INTO posts (content, created_at, user_id, account_id, status)
+                        VALUES (%s, %s, %s, %s, %s)
+                        RETURNING id, content, created_at, status
                         """,
-                        (tweet.tweet, current_time, request.user_id, request.account_id)
+                        (tweet.tweet, current_time, request.user_id, request.account_id, 'unposted')
                     )
                     post_data = cursor.fetchone()
                     saved_posts.append({
                         "id": post_data[0],
                         "content": post_data[1],
-                        "created_at": post_data[2]
+                        "created_at": post_data[2],
+                        "status": post_data[3]
                     })
                 
                 conn.commit()

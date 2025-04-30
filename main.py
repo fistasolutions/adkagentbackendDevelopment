@@ -12,6 +12,7 @@ from routes.twitter_account import router as twitter_account_router
 from routes.agent_settings import router as agent_settings_router
 from routes.notify_settings import router as notify_settings_router
 from routes.daily_tweet_generator import router as daily_tweet_generator_router
+from routes.post_on_twitter import router as post_on_twitter_router
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi import Body
 from pydantic import BaseModel
@@ -47,6 +48,7 @@ app.include_router(twitter_account_router, prefix="/api")
 app.include_router(agent_settings_router, prefix="/api")
 app.include_router(notify_settings_router, prefix="/api")
 app.include_router(twitter_data_router, prefix="/api")
+app.include_router(post_on_twitter_router, prefix="/api")
 app.include_router(daily_tweet_generator_router, prefix="/api")
 class TweetGenerationRequest(BaseModel):
     learning_data: str
