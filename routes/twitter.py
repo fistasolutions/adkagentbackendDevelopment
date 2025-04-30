@@ -37,6 +37,7 @@ async def get_user_id(username: str) -> str:
         try:
             logger.info(f"Attempting to get user ID for username: {username}")
             resp = await client.get(url, headers=HEADERS)
+            print(resp.json())
             if resp.status_code != 200:
                 logger.error(f"Twitter API Error: {resp.text}")
                 raise Exception(f"Twitter API Error: {resp.text}")
