@@ -79,9 +79,9 @@ async def post_tweet(tweet: TweetRequest):
                         """
                         UPDATE posts 
                         SET status = 'posted', 
-                            posted_at = NOW() 
+                            posted_time = NOW() 
                         WHERE id = %s
-                        RETURNING id, status, posted_at
+                        RETURNING id, status, posted_time
                         """,
                         (tweet.post_id,)
                     )
@@ -94,7 +94,7 @@ async def post_tweet(tweet: TweetRequest):
                         "post": {
                             "id": updated_post[0],
                             "status": updated_post[1],
-                            "posted_at": updated_post[2]
+                            "posted_time": updated_post[2]
                         }
                     }
             except Exception as db_error:
