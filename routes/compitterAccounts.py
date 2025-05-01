@@ -22,9 +22,9 @@ class PersonaSafetyUpdate(BaseModel):
 
 class PersonaSafetyResponse(BaseModel):
     id: int
-    role_models: Dict[str, Any]
-    industry_standard: Dict[str, Any]
-    competition: Dict[str, Any]
+    role_models: Optional[Dict[str, Any]] = None
+    industry_standard: Optional[Dict[str, Any]] = None
+    competition: Optional[Dict[str, Any]] = None
     user_id: int
     account_id: int
     created_at: datetime
@@ -50,9 +50,8 @@ async def create_persona_safety(persona_safety: PersonaSafetyCreate):
                 WHERE user_id = %s AND account_id = %s""",
                 (persona_safety.user_id, persona_safety.account_id)
             )
-            existing_record = cursor.fetchone()
+            existing_record = cursor.fetchone()  
             
-            # If record exists, update it instead of deleting
             if existing_record:
                 update_fields = []
                 update_values = []
@@ -92,7 +91,7 @@ async def create_persona_safety(persona_safety: PersonaSafetyCreate):
             else:
                 # Insert new safety setting with only provided fields
                 fields = ["user_id", "account_id", "created_at"]
-                values = [persona_safety.user_id, persona_safety.account_id, "NOW()"]
+                values = [persona_safety.user_id, persona_safety.account_id]
                 placeholders = ["%s", "%s", "NOW()"]
                 
                 if persona_safety.role_models is not None:
