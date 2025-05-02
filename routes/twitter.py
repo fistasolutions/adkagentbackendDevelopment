@@ -209,7 +209,6 @@ async def analyze_user(username: str, userId: int):
 
                 logger.info(f"Successfully analyzed {len(all_tweets)} tweets for user {username}")
                 
-                # Save the new data to database
                 logger.info("Saving data to database")
                 from routes.twitter_data import save_twitter_data
                 await save_twitter_data(result, userId, username)
@@ -231,6 +230,114 @@ async def analyze_user(username: str, userId: int):
             logger.info("Returning latest database data due to error")
             return json.loads(data_json)
         return {"error": str(e)}
+    finally:
+        if conn:
+            conn.close()
+            logger.info("Database connection closed")
+            
+            
+@router.get("/analyze-user-replies")
+async def analyze_user_replies(username: str, user_id: int):
+    try:
+        conn = get_connection()
+        with conn.cursor() as cursor:
+            # First check if we have recent data in comments table (within 2 hours)
+            cursor.execute(
+                """
+                SELECT content, created_at 
+                FROM comments 
+                WHERE user_id = %s AND account_username = %s
+                AND created_at > NOW() - INTERVAL '2 hours'
+                ORDER BY created_at DESC 
+                LIMIT 1
+                """,
+                (user_id, username)
+            )
+            result = cursor.fetchone()
+            
+            # If we have recent comments data, return it
+            if result:
+                content_json, created_at = result
+                logger.info(f"Found cached comments data from {created_at}")
+                return json.loads(content_json)
+            # If no recent data, proceed with API call
+            logger.info("No recent comments data found, fetching from Twitter API")
+            # Get the latest data from post_data table
+            cursor.execute(
+                """
+                SELECT data_json 
+                FROM post_data 
+                WHERE user_id = %s AND username = %s
+                ORDER BY update_at DESC 
+                LIMIT 1
+                """,
+                (user_id, username)
+            )
+            result = cursor.fetchone()
+            
+            if not result:
+                return []
+                
+            data_json = json.loads(result[0])
+            tweets = data_json.get("tweets", [])
+            
+            # Create a map of tweet_id -> tweet text
+            tweet_map = {tweet["tweet_id"]: tweet["text"] for tweet in tweets}
+            
+            # For each tweet ID, get replies from Twitter API
+            all_replies = []
+            for tweet_id, tweet_text in tweet_map.items():
+                url = f"https://api.twitter.com/2/tweets/search/recent?query=conversation_id:{tweet_id}&tweet.fields=author_id,in_reply_to_user_id,conversation_id,created_at&expansions=author_id&user.fields=username"
+                
+                async with httpx.AsyncClient() as client:
+                    response = await client.get(url, headers=HEADERS)
+                    response.raise_for_status()
+                    twitter_data = response.json()
+                    
+                    # Create a map of author_id -> username
+                    author_map = {user["id"]: user["username"] for user in twitter_data.get("includes", {}).get("users", [])}
+                    
+                    # Extract replies
+                    replies = []
+                    for tweet in twitter_data.get("data", []):
+                        author_id = tweet["author_id"]
+                        commenter_name = author_map.get(author_id, "unknown_user")
+                        # Include the tweet creation time from Twitter API
+                        replies.append({
+                            "username": commenter_name,
+                            "text": tweet["text"],
+                            "created_at": tweet.get("created_at")
+                        })
+                    
+                    if replies:  # Only add if there are replies
+                        all_replies.append({
+                            "tweet_id": tweet_id,
+                            "tweet_text": tweet_text,
+                            "replies": replies
+                        })
+            
+            # Save all replies to comments table
+            if all_replies:
+                # Convert to JSON string
+                replies_json = json.dumps(all_replies)
+                
+                # Save to comments table
+                cursor.execute(
+                    """
+                    INSERT INTO comments 
+                    (content, user_id, account_username)
+                    VALUES (%s, %s, %s)
+                    RETURNING id
+                    """,
+                    (replies_json, user_id, username)
+                )
+                conn.commit()
+            
+            return all_replies
+            
+    except Exception as e:
+        logger.error(f"Error in analyze_user_replies: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
     finally:
         if conn:
             conn.close()
