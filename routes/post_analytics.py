@@ -127,8 +127,8 @@ async def check_today_analysis_exists(conn, user_id: int, account_id: int) -> bo
         if 'cursor' in locals():
             cursor.close()
 
-@router.get("/post-analytics/today", response_model=PostAnalyticsResponse)
-async def get_today_post_analytics(request: PostAnalyticsRequest):
+@router.get("/post-analytics/today/{user_id}/{account_id}", response_model=PostAnalyticsResponse)
+async def get_today_post_analytics(user_id: int, account_id: int):
     """
     Get strategic analysis of today's posts using OpenAI Agents SDK and save results to activity logs
     """
@@ -137,7 +137,7 @@ async def get_today_post_analytics(request: PostAnalyticsRequest):
         conn = get_connection()
         
         # Check if analysis already exists for today
-        if await check_today_analysis_exists(conn, request.user_id, request.account_id):
+        if await check_today_analysis_exists(conn, user_id, account_id):
             # If analysis exists, fetch the latest insights
             cursor = conn.cursor()
             query = """
@@ -150,7 +150,7 @@ async def get_today_post_analytics(request: PostAnalyticsRequest):
             """
             
             today = datetime.now().date()
-            cursor.execute(query, (request.user_id, request.account_id, today))
+            cursor.execute(query, (user_id, account_id, today))
             logs = cursor.fetchall()
             
             # Group logs by type
@@ -185,7 +185,7 @@ async def get_today_post_analytics(request: PostAnalyticsRequest):
         WHERE DATE(created_at) = %s AND account_id = %s AND user_id = %s
         """
         
-        cursor.execute(query, (today, request.account_id, request.user_id))
+        cursor.execute(query, (today, account_id, user_id))
         posts = cursor.fetchall()
         
         if not posts:
@@ -205,14 +205,14 @@ async def get_today_post_analytics(request: PostAnalyticsRequest):
         
         # Save insights to activity logs
         for insight in analysis.insights:
-            await save_activity_log(conn, request.user_id, request.account_id, insight, "insight")
+            await save_activity_log(conn, user_id, account_id, insight, "insight")
             
         # Save improvements to activity logs
         for improvement in analysis.improvements:
-            await save_activity_log(conn, request.user_id, request.account_id, improvement, "improvement")
+            await save_activity_log(conn, user_id, account_id, improvement, "improvement")
             
         # Save impact analysis to activity logs
-        await save_activity_log(conn, request.user_id, request.account_id, analysis.impact_analysis, "impact_analysis")
+        await save_activity_log(conn, user_id, account_id, analysis.impact_analysis, "impact_analysis")
         
         return analysis
         
