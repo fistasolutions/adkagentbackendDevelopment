@@ -154,3 +154,5 @@ async def generate_monthly_report(request: MonthlyReportRequest):
         raise HTTPException(status_code=500, detail=str(e))
     finally:
         conn.close()
+
+
