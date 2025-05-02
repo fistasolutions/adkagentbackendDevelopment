@@ -15,6 +15,7 @@ from routes.daily_tweet_generator import router as daily_tweet_generator_router
 from routes.post_on_twitter import router as post_on_twitter_router
 from routes.compitterAccounts import router as compitter_accounts_router
 from routes.risk_scoring_agent import router as risk_scoring_agent_router
+from routes.monthly_report import router as monthly_report_router
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi import Body
 from pydantic import BaseModel
@@ -54,6 +55,7 @@ app.include_router(post_on_twitter_router, prefix="/api")
 app.include_router(daily_tweet_generator_router, prefix="/api")
 app.include_router(compitter_accounts_router, prefix="/api")
 app.include_router(risk_scoring_agent_router, prefix="/api")    
+app.include_router(monthly_report_router, prefix="/api")
 class TweetGenerationRequest(BaseModel):
     learning_data: str
     account_id: int
