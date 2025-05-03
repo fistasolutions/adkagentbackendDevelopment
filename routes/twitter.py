@@ -1,9 +1,13 @@
+from typing import List
 from fastapi import APIRouter, HTTPException
 import httpx
 import time
 import datetime
 import json
 import logging
+import asyncio
+
+from pydantic import BaseModel
 from db.db import get_connection
 
 # Configure logging
@@ -12,13 +16,33 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
+
+
+class UsersRequest(BaseModel):
+    accounts: dict[str, str]  # Changed from List[str] to dict[str, str]
+
+class CompetitorMetrics(BaseModel):
+    id: int
+    competitor_name: str
+    impressions: int
+    likes: int
+    retweets: int
+    replies: int
+    engagement_rate: float
+    collected_at: datetime.datetime
+
+class MonthlyCompetitorMetrics(BaseModel):
+    month: str
+    competitor_name: str
+    total_impressions: int
+    total_likes: int
+    total_retweets: int
+    total_replies: int
+    average_engagement_rate: float
+    data_points: int
+
 TWITTER_API_URL = "https://api.twitter.com/2/users"
-# BEARER_TOKEN = "AAAAAAAAAAAAAAAAAAAAAN6v0gEAAAAA6rLvWK1fnVsfhSAwubYqulpJtVQ%3Dc0ujCdjOBasf6Zc9ewpKAgckArQHs5XdBGf5A1y7skpC2ZGqaH"
 BEARER_TOKEN = "AAAAAAAAAAAAAAAAAAAAAN6v0gEAAAAATJ%2FK69fGoI5s3aLKkMKMX0R8g1M%3De9zLuhs1lfYtVTUSXJbnN2qqfINn0hWo50OXtf3BHHTmuY8abF"
-# BEARER_TOKEN = "AAAAAAAAAAAAAAAAAAAAADSe0gEAAAAAHLK1v%2FQ2JFmRJsK9DqIcLLiv8rU%3DcgtltjsRjTMXSnJZEAMqjDQ0Xf0AmArVbzRRLMKShg6rOVxgZp"
-# BEARER_TOKEN = "AAAAAAAAAAAAAAAAAAAAABef0gEAAAAAG1WN1tJMGkifs2nrsGJTi%2BsdOM4%3Dg23lsIJHohFesKuImCMfklZBLBZk7k39jBcv84gWqcWTaP6rJc"
-# BEARER_TOKEN = "AAAAAAAAAAAAAAAAAAAAAD6J0gEAAAAAHyOeocAJ1cffIarF6rj%2BlRuwZ24%3D8X15xgFCHEM4fpkcDkCoTwiHPr25EvXRTPw6h527b8GBQELbjN"
-# BEARER_TOKEN = "AAAAAAAAAAAAAAAAAAAAAGtdxwEAAAAA91i%2BgzwkPpLhHOGhf40KVfbNxfY%3DuMbVHT42TpDFhwFqI9TooY1at2mJ86xmOhtcDiIntdEk45rLY5"
 HEADERS = {"Authorization": f"Bearer {BEARER_TOKEN}"}
 # Very basic cache dictionary
 tweet_cache = {}
@@ -404,3 +428,405 @@ async def get_japan_trends():
             
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+async def make_twitter_request(client, url, headers, params, max_retries=5):
+    """
+    Make a request to Twitter API with retry logic and exponential backoff
+    """
+    for attempt in range(max_retries):
+        try:
+            resp = await client.get(url, headers=headers, params=params)
+            
+            if resp.status_code == 429:  # Rate limit exceeded
+                if attempt < max_retries - 1:
+                    # Calculate backoff time (exponential backoff)
+                    backoff_time = (2 ** attempt) * 5  # 5, 10, 20, 40, 80 seconds
+                    logger.warning(f"Rate limit exceeded. Retrying in {backoff_time} seconds...")
+                    await asyncio.sleep(backoff_time)
+                    continue
+                else:
+                    raise Exception("Max retries reached for rate limit")
+                    
+            if resp.status_code != 200:
+                raise Exception(f"Twitter API Error: {resp.text}")
+                
+            return resp
+            
+        except Exception as e:
+            if attempt == max_retries - 1:
+                raise
+            logger.warning(f"Request failed, retrying... Error: {str(e)}")
+            await asyncio.sleep(5)  # Basic retry delay
+
+@router.post("/analyze-multiple-users/{userId}/{account_id}")
+async def analyze_multiple_users(userId: int, account_id: int, request: UsersRequest):
+    """
+    Analyze multiple Twitter users and return their aggregated data.
+    Also saves metrics to competitor_metrics and raw data to compititers_data tables.
+    Only saves new data if existing data is older than 48 hours.
+    Implements retry logic for rate limits.
+    """
+    try:
+        results = []
+        conn = get_connection()
+        
+        for account_key, username in request.accounts.items():
+            try:
+                # Check if we have recent data in both tables
+                with conn.cursor() as cursor:
+                    cursor.execute(
+                        """
+                        SELECT created_at 
+                        FROM compititers_data 
+                        WHERE user_id = %s AND account_id = %s
+                        ORDER BY created_at DESC 
+                        LIMIT 1
+                        """,
+                        (userId, account_id)
+                    )
+                    compititers_data = cursor.fetchone()
+                    
+                    cursor.execute(
+                        """
+                        SELECT collected_at 
+                        FROM competitor_metrics 
+                        WHERE user_id = %s AND account_id = %s
+                        ORDER BY collected_at DESC 
+                        LIMIT 1
+                        """,
+                        (userId, account_id)
+                    )
+                    metrics_data = cursor.fetchone()
+                
+                # If we have recent data in both tables (less than 48 hours old), skip saving
+                if compititers_data and metrics_data:
+                    compititers_time = compititers_data[0]
+                    metrics_time = metrics_data[0]
+                    current_time = datetime.datetime.now(datetime.timezone.utc)
+                    
+                    # Ensure both times are timezone-aware
+                    if compititers_time.tzinfo is None:
+                        compititers_time = compititers_time.replace(tzinfo=datetime.timezone.utc)
+                    if metrics_time.tzinfo is None:
+                        metrics_time = metrics_time.replace(tzinfo=datetime.timezone.utc)
+                    
+                    if (current_time - compititers_time).total_seconds() < 48 * 3600 and \
+                       (current_time - metrics_time).total_seconds() < 48 * 3600:
+                        logger.info(f"Skipping {username} - data is less than 48 hours old")
+                        continue
+                
+                # Get user ID first with retry
+                user_id = None
+                for attempt in range(5):
+                    try:
+                        user_id = await get_user_id(username)
+                        break
+                    except Exception as e:
+                        if "Too Many Requests" in str(e) and attempt < 4:
+                            backoff_time = (2 ** attempt) * 5
+                            logger.warning(f"Rate limit getting user ID. Retrying in {backoff_time} seconds...")
+                            await asyncio.sleep(backoff_time)
+                            continue
+                        raise
+                
+                if not user_id:
+                    raise Exception("Failed to get user ID after retries")
+                
+                # Get user's tweets
+                end_time = datetime.datetime.now(datetime.timezone.utc)
+                start_time = end_time - datetime.timedelta(days=7)
+                start_time_str = start_time.strftime("%Y-%m-%dT%H:%M:%SZ")
+                end_time_str = end_time.strftime("%Y-%m-%dT%H:%M:%SZ")
+                
+                all_tweets = []
+                next_token = None
+                
+                async with httpx.AsyncClient() as client:
+                    while True:
+                        url = f"https://api.twitter.com/2/users/{user_id}/tweets"
+                        params = {
+                            "max_results": 100,
+                            "tweet.fields": "created_at,public_metrics,conversation_id,attachments,entities",
+                            "expansions": "attachments.media_keys",
+                            "media.fields": "url,preview_image_url,type,height,width",
+                            "start_time": start_time_str,
+                            "end_time": end_time_str
+                        }
+                        
+                        if next_token:
+                            params["pagination_token"] = next_token
+                            
+                        # Use the retry mechanism for the request
+                        resp = await make_twitter_request(client, url, HEADERS, params)
+                        data = resp.json()
+                        tweets = data.get("data", [])
+                        media = {m["media_key"]: m for m in data.get("includes", {}).get("media", [])}
+                        
+                        for tweet in tweets:
+                            metrics = tweet.get("public_metrics", {})
+                            
+                            tweet_media = []
+                            if "attachments" in tweet and "media_keys" in tweet["attachments"]:
+                                for media_key in tweet["attachments"]["media_keys"]:
+                                    if media_key in media:
+                                        media_item = media[media_key]
+                                        tweet_media.append({
+                                            "type": media_item["type"],
+                                            "url": media_item.get("url"),
+                                            "preview_url": media_item.get("preview_image_url"),
+                                            "dimensions": {
+                                                "height": media_item.get("height"),
+                                                "width": media_item.get("width")
+                                            }
+                                        })
+                                        
+                            tweet_data = {
+                                "tweet_id": tweet["id"],
+                                "text": tweet["text"],
+                                "created_at": tweet["created_at"],
+                                "like_count": metrics.get("like_count", 0),
+                                "retweet_count": metrics.get("retweet_count", 0),
+                                "reply_count": metrics.get("reply_count", 0),
+                                "quote_count": metrics.get("quote_count", 0),
+                                "impression_count": metrics.get("impression_count", 0),
+                                "media": tweet_media
+                            }
+                            
+                            all_tweets.append(tweet_data)
+                            
+                        next_token = data.get("meta", {}).get("next_token")
+                        if not next_token:
+                            break
+                            
+                # Calculate aggregated metrics
+                total_tweets = len(all_tweets)
+                total_likes = sum(tweet["like_count"] for tweet in all_tweets)
+                total_retweets = sum(tweet["retweet_count"] for tweet in all_tweets)
+                total_replies = sum(tweet["reply_count"] for tweet in all_tweets)
+                total_impressions = sum(tweet["impression_count"] for tweet in all_tweets)
+                engagement_rate = (total_likes + total_retweets + total_replies) / total_impressions if total_impressions > 0 else 0
+                
+                # Save all tweets for this user to compititers_data table
+                for attempt in range(5):
+                    try:
+                        with conn.cursor() as cursor:
+                            cursor.execute(
+                                """
+                                INSERT INTO compititers_data 
+                                (content, user_id, account_id, created_at)
+                                VALUES (%s, %s, %s, %s)
+                                RETURNING id
+                                """,
+                                (
+                                    json.dumps({
+                                        "username": username,
+                                        "tweets": all_tweets,
+                                        "total_tweets": total_tweets,
+                                        "total_likes": total_likes,
+                                        "total_retweets": total_retweets,
+                                        "total_replies": total_replies,
+                                        "total_impressions": total_impressions,
+                                        "engagement_rate": engagement_rate
+                                    }),
+                                    userId,
+                                    account_id,
+                                    datetime.datetime.now(datetime.timezone.utc)
+                                )
+                            )
+                            conn.commit()
+                        break
+                    except Exception as e:
+                        if attempt < 4:
+                            backoff_time = (2 ** attempt) * 5
+                            logger.warning(f"Database error saving user data, retrying in {backoff_time} seconds... Error: {str(e)}")
+                            await asyncio.sleep(backoff_time)
+                            continue
+                        raise
+                
+                # Save metrics to competitor_metrics table with retry
+                for attempt in range(5):
+                    try:
+                        with conn.cursor() as cursor:
+                            cursor.execute(
+                                """
+                                INSERT INTO competitor_metrics 
+                                (competitor_name, impressions, likes, retweets, replies, engagement_rate, collected_at, account_id, user_id)
+                                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                                RETURNING id
+                                """,
+                                (
+                                    username,
+                                    total_impressions,
+                                    total_likes,
+                                    total_retweets,
+                                    total_replies,
+                                    engagement_rate,
+                                    datetime.datetime.now(datetime.timezone.utc),
+                                    account_id,
+                                    userId
+                                )
+                            )
+                            metric_id = cursor.fetchone()[0]
+                            conn.commit()
+                        break
+                    except Exception as e:
+                        if attempt < 4:
+                            backoff_time = (2 ** attempt) * 5
+                            logger.warning(f"Database error saving metrics, retrying in {backoff_time} seconds... Error: {str(e)}")
+                            await asyncio.sleep(backoff_time)
+                            continue
+                        raise
+                
+                results.append({
+                    "account_key": account_key,
+                    "username": username,
+                    "total_tweets": total_tweets,
+                    "total_likes": total_likes,
+                    "total_retweets": total_retweets,
+                    "total_replies": total_replies,
+                    "total_impressions": total_impressions,
+                    "engagement_rate": engagement_rate,
+                    "tweets": all_tweets
+                })
+                
+            except Exception as e:
+                logger.error(f"Error processing user {username}: {str(e)}")
+                results.append({
+                    "account_key": account_key,
+                    "username": username,
+                    "error": str(e)
+                })
+                
+        return {
+            "total_accounts_analyzed": len(request.accounts),
+            "successful_analyses": len([r for r in results if "error" not in r]),
+            "results": results
+        }
+        
+    except Exception as e:
+        logger.error(f"Error in analyze_multiple_users: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        if conn:
+            conn.close()
+            logger.info("Database connection closed")
+
+@router.get("/competitor-metrics/monthly/{user_id}/{account_id}")
+async def get_monthly_competitor_metrics(user_id: int, account_id: int):
+    """
+    Fetch monthly aggregated competitor metrics for a specific user and account.
+    Returns data grouped by month and competitor, ensuring no duplicate data is used within 48 hours.
+    """
+    try:
+        conn = get_connection()
+        with conn.cursor() as cursor:
+            # First, let's check if we have any data at all for this user and account
+            cursor.execute("""
+                SELECT COUNT(*) 
+                FROM competitor_metrics 
+                WHERE user_id = %s AND account_id = %s
+            """, (user_id, account_id))
+            total_records = cursor.fetchone()[0]
+            logger.info(f"Total records found for user_id {user_id} and account_id {account_id}: {total_records}")
+
+            if total_records == 0:
+                return {"message": "No competitor metrics found for the specified user and account"}
+
+            # Get the date range of our data
+            cursor.execute("""
+                SELECT MIN(collected_at), MAX(collected_at)
+                FROM competitor_metrics
+                WHERE user_id = %s AND account_id = %s
+            """, (user_id, account_id))
+            min_date, max_date = cursor.fetchone()
+            logger.info(f"Data date range: from {min_date} to {max_date}")
+
+            # Now get the monthly metrics
+            cursor.execute("""
+                WITH latest_data AS (
+                    SELECT 
+                        competitor_name,
+                        MAX(collected_at) as last_collected
+                    FROM competitor_metrics
+                    WHERE user_id = %s 
+                    AND account_id = %s
+                    GROUP BY competitor_name
+                )
+                SELECT 
+                    DATE_TRUNC('month', cm.collected_at) as month,
+                    cm.competitor_name,
+                    SUM(cm.impressions) as total_impressions,
+                    SUM(cm.likes) as total_likes,
+                    SUM(cm.retweets) as total_retweets,
+                    SUM(cm.replies) as total_replies,
+                    AVG(cm.engagement_rate) as average_engagement_rate,
+                    COUNT(*) as data_points
+                FROM competitor_metrics cm
+                LEFT JOIN latest_data ld ON cm.competitor_name = ld.competitor_name
+                WHERE cm.user_id = %s 
+                AND cm.account_id = %s
+                AND (
+                    -- Include the record if it's the only one for this competitor
+                    NOT EXISTS (
+                        SELECT 1 
+                        FROM competitor_metrics cm2 
+                        WHERE cm2.competitor_name = cm.competitor_name 
+                        AND cm2.user_id = cm.user_id 
+                        AND cm2.account_id = cm.account_id
+                        AND cm2.collected_at > cm.collected_at
+                    )
+                    -- OR if it's older than 48 hours from the latest record
+                    OR (ld.last_collected IS NOT NULL AND cm.collected_at <= ld.last_collected - INTERVAL '48 hours')
+                )
+                GROUP BY DATE_TRUNC('month', cm.collected_at), cm.competitor_name
+                ORDER BY month DESC, cm.competitor_name
+            """, (user_id, account_id, user_id, account_id))
+            
+            results = cursor.fetchall()
+            
+            if not results:
+                return {
+                    "message": "No competitor metrics found for the specified period",
+                    "debug_info": {
+                        "total_records": total_records,
+                        "date_range": {
+                            "min": min_date.isoformat() if min_date else None,
+                            "max": max_date.isoformat() if max_date else None
+                        }
+                    }
+                }
+            
+            # Convert results to list of MonthlyCompetitorMetrics
+            monthly_metrics = []
+            for row in results:
+                monthly_metrics.append(MonthlyCompetitorMetrics(
+                    month=row[0].strftime("%Y-%m"),
+                    competitor_name=row[1],
+                    total_impressions=row[2],
+                    total_likes=row[3],
+                    total_retweets=row[4],
+                    total_replies=row[5],
+                    average_engagement_rate=float(row[6]),
+                    data_points=row[7]
+                ))
+            
+            return {
+                "user_id": user_id,
+                "account_id": account_id,
+                "metrics": monthly_metrics,
+                "debug_info": {
+                    "total_records": total_records,
+                    "date_range": {
+                        "min": min_date.isoformat() if min_date else None,
+                        "max": max_date.isoformat() if max_date else None
+                    }
+                }
+            }
+            
+    except Exception as e:
+        logger.error(f"Error fetching monthly competitor metrics: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        if conn:
+            conn.close()
+            logger.info("Database connection closed")

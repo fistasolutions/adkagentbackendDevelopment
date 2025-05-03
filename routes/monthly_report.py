@@ -31,8 +31,8 @@ def get_twitter_followers(username, bearer_token):
     data = response.json()
     return data["data"]["public_metrics"]["followers_count"]
 
-@router.post("/monthly-report")
-async def generate_monthly_report(request: MonthlyReportRequest):
+@router.post("/monthly-report/{user_id}/{account_username}")
+async def generate_monthly_report(user_id: int, account_username: str):
     try:
         conn = get_connection()
         with conn.cursor() as cursor:
@@ -58,7 +58,7 @@ async def generate_monthly_report(request: MonthlyReportRequest):
                     AND update_at >= %s AND update_at < %s
                     ORDER BY update_at DESC LIMIT 1
                     ''',
-                    (request.user_id, request.account_username, week_start, week_end)
+                    (user_id, account_username, week_start, week_end)
                 )
                 result = cursor.fetchone()
                 if result:
@@ -77,7 +77,7 @@ async def generate_monthly_report(request: MonthlyReportRequest):
             engagementRate = ((total_likes + total_replies) / total_impressions * 100) if total_impressions > 0 else 0
 
             bearer_token = os.getenv("BEARER_TOKEN")  
-            followers_count = get_twitter_followers(request.account_username, bearer_token)
+            followers_count = get_twitter_followers(account_username, bearer_token)
 
             # 1. Check if a row exists for this user/account/month
             cursor.execute(
@@ -86,7 +86,7 @@ async def generate_monthly_report(request: MonthlyReportRequest):
                 WHERE user_id = %s AND account_username = %s
                 AND date_trunc('month', created_at) = date_trunc('month', %s)
                 ''',
-                (request.user_id, request.account_username, current_time)
+                (user_id, account_username, current_time)
             )
             existing = cursor.fetchone()
 
@@ -124,8 +124,8 @@ async def generate_monthly_report(request: MonthlyReportRequest):
                         str(total_impressions),
                         str(engagementRate),
                         str(followers_count),
-                        request.user_id,
-                        request.account_username,
+                        user_id,
+                        account_username,
                         current_time,
                         current_time
                     )
@@ -140,8 +140,8 @@ async def generate_monthly_report(request: MonthlyReportRequest):
                 reply=total_replies,
                 impressions=total_impressions,
                 engagementRate=engagementRate,
-                user_id=request.user_id,
-                account_username=request.account_username
+                user_id=user_id,
+                account_username=account_username
             )
 
             return {
@@ -150,6 +150,57 @@ async def generate_monthly_report(request: MonthlyReportRequest):
                 "data": engagement_data
             }
 
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        conn.close()
+
+@router.get("/monthly-report/{user_id}/{account_username}")
+async def get_monthly_report(user_id: int, account_username: str):
+    try:
+        conn = get_connection()
+        with conn.cursor() as cursor:
+            # Get all reports for the given user and account
+            cursor.execute(
+                '''
+                SELECT id, likes, reply, impressions, "engagementRate", followers, created_at
+                FROM account_analytics
+                WHERE user_id = %s AND account_username = %s
+                ORDER BY created_at DESC
+                ''',
+                (user_id, account_username)
+            )
+            results = cursor.fetchall()
+
+            if not results:
+                raise HTTPException(
+                    status_code=404,
+                    detail="No reports found for the specified user and account"
+                )
+
+            # Convert results to list of dictionaries
+            reports = []
+            for result in results:
+                report_data = {
+                    "id": result[0],
+                    "likes": int(result[1]),
+                    "reply": int(result[2]),
+                    "impressions": int(result[3]),
+                    "engagementRate": float(result[4]),
+                    "followers": int(result[5]),
+                    "created_at": result[6],
+                    "user_id": user_id,
+                    "account_username": account_username
+                }
+                reports.append(report_data)
+
+            return {
+                "status": "success",
+                "data": reports
+            }
+
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
     finally:
