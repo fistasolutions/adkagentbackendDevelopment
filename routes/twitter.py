@@ -830,3 +830,35 @@ async def get_monthly_competitor_metrics(user_id: int, account_id: int):
         if conn:
             conn.close()
             logger.info("Database connection closed")
+
+@router.get("/tweet/{tweet_id}")
+async def get_tweet_details(tweet_id: str):
+    """
+    Get only likes and comments count for a specific tweet
+    """
+    try:
+        # Get tweet details
+        url = f"https://api.twitter.com/2/tweets/{tweet_id}"
+        params = {
+            "tweet.fields": "public_metrics"
+        }
+
+        async with httpx.AsyncClient() as client:
+            # Get tweet details
+            resp = await client.get(url, headers=HEADERS, params=params)
+            if resp.status_code != 200:
+                raise HTTPException(status_code=resp.status_code, detail=f"Twitter API Error: {resp.text}")
+
+            data = resp.json()
+            tweet_data = data.get("data", {})
+            metrics = tweet_data.get("public_metrics", {})
+
+            return {
+                "likes": metrics.get("like_count", 0),
+                "comments": metrics.get("reply_count", 0)
+            }
+
+    except Exception as e:
+        logger.error(f"Error in get_tweet_details: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+

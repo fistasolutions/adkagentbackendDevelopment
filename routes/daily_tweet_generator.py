@@ -147,6 +147,11 @@ class TweetRequest(BaseModel):
     user_id: str
     account_id: str
 
+class TweetUpdateRequest(BaseModel):
+    tweet_id: str
+    content: Optional[str] = None
+    scheduled_time: Optional[str] = None
+
 # Test data for role model analysis
 ROLE_MODEL_TEST_DATA = {
     "communication_style": "Professional and engaging",
@@ -543,3 +548,94 @@ async def analyze_comments(tweet_ids: List[str]):
     except Exception as e:
         print(f"Error analyzing comments: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Failed to analyze comments: {str(e)}")
+
+@router.put("/update-tweet")
+async def update_tweet(request: TweetUpdateRequest):
+    """Update the content or scheduled time of a tweet."""
+    try:
+        if not request.content and not request.scheduled_time:
+            raise HTTPException(
+                status_code=400,
+                detail="At least one of content or scheduled_time must be provided"
+            )
+
+        conn = get_connection()
+        try:
+            with conn.cursor() as cursor:
+                # First check if the tweet exists
+                cursor.execute(
+                    """
+                    SELECT id
+                    FROM posts 
+                    WHERE id = %s
+                    """,
+                    (request.tweet_id,)
+                )
+                tweet = cursor.fetchone()
+                
+                if not tweet:
+                    raise HTTPException(
+                        status_code=404,
+                        detail="Tweet not found"
+                    )
+
+                # Prepare the update query based on provided fields
+                update_fields = []
+                update_values = []
+                
+                if request.content:
+                    update_fields.append("content = %s")
+                    update_values.append(request.content)
+                
+                if request.scheduled_time:
+                    try:
+                        # Validate the scheduled time format
+                        datetime.strptime(request.scheduled_time, "%Y-%m-%dT%H:%M:%SZ")
+                        update_fields.append("scheduled_time = %s")
+                        update_values.append(request.scheduled_time)
+                    except ValueError:
+                        raise HTTPException(
+                            status_code=400,
+                            detail="Invalid scheduled_time format. Use ISO format: YYYY-MM-DDTHH:MM:SSZ"
+                        )
+
+                # Add tweet_id to the values list
+                update_values.append(request.tweet_id)
+
+                # Construct and execute the update query
+                update_query = f"""
+                    UPDATE posts 
+                    SET {', '.join(update_fields)}
+                    WHERE id = %s
+                    RETURNING id, content, scheduled_time
+                """
+                
+                cursor.execute(update_query, update_values)
+                updated_tweet = cursor.fetchone()
+                
+                conn.commit()
+                
+                return {
+                    "message": "Tweet updated successfully",
+                    "tweet": {
+                        "id": updated_tweet[0],
+                        "content": updated_tweet[1],
+                        "scheduled_time": updated_tweet[2]
+                    }
+                }
+                
+        except HTTPException as he:
+            raise he
+        except Exception as db_error:
+            print(f"Database error: {str(db_error)}")
+            raise HTTPException(status_code=500, detail=f"Failed to update tweet: {str(db_error)}")
+        finally:
+            conn.close()
+            
+    except HTTPException as he:
+        raise he
+    except Exception as e:
+        print(f"Error updating tweet: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to update tweet: {str(e)}")
+
+
