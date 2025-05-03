@@ -46,6 +46,7 @@ class CommentRiskItem(BaseModel):
     risk_score: int
     risk_factors: List[str]
     explanation: str
+    sentiment: str
 
 class TweetWithCommentsRiskItem(BaseModel):
     tweet_id: str
@@ -484,13 +485,23 @@ async def analyze_account_tweets_with_comments(request: TweetRiskRequest):
                         "explanation": f"Error during analysis: {str(e)[:100]}"
                     }
                 
+                # Determine sentiment based on risk score
+                risk_score = comment_analysis["risk_score"]
+                if risk_score <= 33:
+                    sentiment = "positive"
+                elif risk_score <= 66:
+                    sentiment = "neutral"
+                else:
+                    sentiment = "negative"
+                
                 analyzed_comments.append(CommentRiskItem(
                     comment_id=reply.get("id", "unknown"),
                     username=reply.get("username", "unknown"),
                     text=comment_text,
                     risk_score=comment_analysis["risk_score"],
                     risk_factors=comment_analysis["risk_factors"],
-                    explanation=comment_analysis["explanation"]
+                    explanation=comment_analysis["explanation"],
+                    sentiment=sentiment
                 ))
                 
                 total_risk_score += comment_analysis["risk_score"]
@@ -520,7 +531,8 @@ async def analyze_account_tweets_with_comments(request: TweetRiskRequest):
                 analyzed_comment.comment_id: {
                     "risk_score": analyzed_comment.risk_score,
                     "risk_factors": analyzed_comment.risk_factors,
-                    "explanation": analyzed_comment.explanation
+                    "explanation": analyzed_comment.explanation,
+                    "sentiment": analyzed_comment.sentiment
                 }
                 for analyzed_comment in analyzed_comments
             }
@@ -533,14 +545,16 @@ async def analyze_account_tweets_with_comments(request: TweetRiskRequest):
                     reply.update({
                         "risk_score": analysis["risk_score"],
                         "risk_factors": analysis["risk_factors"],
-                        "explanation": analysis["explanation"]
+                        "explanation": analysis["explanation"],
+                        "sentiment": analysis["sentiment"]
                     })
                 else:
                     # If no analysis was performed, add default values
                     reply.update({
                         "risk_score": 30,
                         "risk_factors": ["No analysis performed"],
-                        "explanation": "This comment was not analyzed"
+                        "explanation": "This comment was not analyzed",
+                        "sentiment": "neutral"
                     })
         
         # Calculate average risk score
