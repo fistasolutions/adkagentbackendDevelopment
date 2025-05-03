@@ -19,7 +19,8 @@ class NotifySettingCreate(BaseModel):
     created_at: datetime
     posting_frequency: str
     pre_create: str
-    post_mode: str
+    post_mode: bool
+    template: str
 
 class NotifySettingUpdate(BaseModel):
     posting_day: Optional[Dict[str, Any]] = None
@@ -44,6 +45,7 @@ class NotifySettingResponse(BaseModel):
     posting_frequency: str
     pre_create: str
     post_mode: bool
+    template: str
 
 @router.post("/notify-settings", response_model=NotifySettingResponse)
 async def create_notify_setting(notify_setting: NotifySettingCreate):
@@ -79,10 +81,10 @@ async def create_notify_setting(notify_setting: NotifySettingCreate):
             cursor.execute(
                 """INSERT INTO persona_notify 
                 (posting_day, posting_time, sentence_length, notify_type, template_use, 
-                target_hashtag, user_id, account_id, created_at,posting_frequency,pre_create,post_mode) 
-                VALUES (%s::jsonb, %s::jsonb, %s, %s, %s, %s, %s, %s, NOW(),%s,%s,%s) 
+                target_hashtag, user_id, account_id, created_at,posting_frequency,pre_create,post_mode,template_text) 
+                VALUES (%s::jsonb, %s::jsonb, %s, %s, %s, %s, %s, %s, NOW(),%s,%s,%s,%s) 
                 RETURNING notify_id, posting_day, posting_time, sentence_length, 
-                notify_type, template_use, target_hashtag, user_id, account_id, created_at,posting_frequency,pre_create,post_mode""",
+                notify_type, template_use, target_hashtag, user_id, account_id, created_at,posting_frequency,pre_create,post_mode,template_text""",
                 (
                     json.dumps(notify_setting.posting_day),
                     json.dumps(notify_setting.posting_time),
@@ -94,7 +96,8 @@ async def create_notify_setting(notify_setting: NotifySettingCreate):
                     notify_setting.account_id,
                     notify_setting.posting_frequency,
                     notify_setting.pre_create,
-                    notify_setting.post_mode
+                    notify_setting.post_mode,
+                    notify_setting.template
                 )
             )
             
@@ -114,7 +117,8 @@ async def create_notify_setting(notify_setting: NotifySettingCreate):
                 "created_at": setting[9],
                 "posting_frequency": setting[10],
                 "pre_create": setting[11],
-                "post_mode": setting[12]
+                "post_mode": setting[12],
+                "template": setting[13]
             }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -128,7 +132,7 @@ async def get_all_persona_notify():
         with conn.cursor() as cursor:
             cursor.execute(
                 """SELECT notify_id, posting_day, posting_time, sentence_length, 
-                notify_type, template_use, target_hashtag, user_id, account_id, created_at 
+                notify_type, template_use, target_hashtag, user_id, account_id, created_at,posting_frequency,pre_create,post_mode,template_text
                 FROM persona_notify"""
             )
             settings = cursor.fetchall()
@@ -143,7 +147,11 @@ async def get_all_persona_notify():
                     "target_hashtag": setting[6],
                     "user_id": setting[7],
                     "account_id": setting[8],
-                    "created_at": setting[9]
+                    "created_at": setting[9],
+                    "posting_frequency": setting[10],
+                    "pre_create": setting[11],
+                    "post_mode": setting[12],
+                    "template": setting[13]
                 }
                 for setting in settings
             ]
@@ -159,7 +167,7 @@ async def get_notify_setting(notify_id: int):
         with conn.cursor() as cursor:
             cursor.execute(
                 """SELECT notify_id, posting_day, posting_time, sentence_length, 
-                notify_type, template_use, target_hashtag, user_id, account_id, created_at 
+                notify_type, template_use, target_hashtag, user_id, account_id, created_at,posting_frequency,pre_create,post_mode,template_text
                 FROM persona_notify WHERE notify_id = %s""",
                 (notify_id,)
             )
@@ -176,7 +184,11 @@ async def get_notify_setting(notify_id: int):
                 "target_hashtag": setting[6],
                 "user_id": setting[7],
                 "account_id": setting[8],
-                "created_at": setting[9]
+                "created_at": setting[9],
+                "posting_frequency": setting[10],
+                "pre_create": setting[11],
+                "post_mode": setting[12],
+                "template": setting[13]
             }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -198,7 +210,7 @@ async def get_persona_notify_settings(user_id: int, username: str):
             # Get notification settings
             cursor.execute(
                 """SELECT notify_id, posting_day, posting_time, sentence_length, 
-                notify_type, template_use, target_hashtag, user_id, account_id, created_at,posting_frequency,pre_create,post_mode
+                notify_type, template_use, target_hashtag, user_id, account_id, created_at,posting_frequency,pre_create,post_mode,template_text
                 FROM persona_notify WHERE user_id = %s AND account_id = %s""",
                 (user_id, account_id)
             )
@@ -219,7 +231,8 @@ async def get_persona_notify_settings(user_id: int, username: str):
                     "created_at": setting[9],
                     "posting_frequency": setting[10],
                     "pre_create": setting[11],
-                    "post_mode": setting[12]
+                    "post_mode": setting[12],
+                    "template": setting[13]
                 }
                 for setting in settings
             ]
@@ -284,7 +297,7 @@ async def update_notify_setting(notify_id: int, notify_setting: NotifySettingUpd
                 SET {', '.join(update_fields)}
                 WHERE notify_id = %s
                 RETURNING notify_id, posting_day, posting_time, sentence_length, 
-                notify_type, template_use, target_hashtag, user_id, account_id, created_at""",
+                notify_type, template_use, target_hashtag, user_id, account_id, created_at,posting_frequency,pre_create,post_mode,template_text""",
                 tuple(update_values)
             )
             
@@ -301,7 +314,11 @@ async def update_notify_setting(notify_id: int, notify_setting: NotifySettingUpd
                 "target_hashtag": updated_setting[6],
                 "user_id": updated_setting[7],
                 "account_id": updated_setting[8],
-                "created_at": updated_setting[9]
+                "created_at": updated_setting[9],
+                "posting_frequency": updated_setting[10],
+                "pre_create": updated_setting[11],
+                "post_mode": updated_setting[12],
+                "template": updated_setting[13]
             }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
