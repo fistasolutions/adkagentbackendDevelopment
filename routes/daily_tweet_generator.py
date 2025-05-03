@@ -482,7 +482,6 @@ async def generate_tweets(request: TweetRequest):
             print(f"Response content: {result}")
             raise HTTPException(status_code=500, detail="Unexpected response format from Tweet Agent")
         if len(result.tweets) != 5:
-            print(f"Generated {len(result.tweets)} tweets instead of 5")
             raise HTTPException(status_code=500, detail="Expected exactly five tweets")
         
         # Save tweets to database
@@ -512,7 +511,6 @@ async def generate_tweets(request: TweetRequest):
                     })
                 
                 conn.commit()
-                print(f"Successfully saved {len(saved_posts)} tweets to database")
                 
         except Exception as db_error:
             print(f"Database error: {str(db_error)}")
