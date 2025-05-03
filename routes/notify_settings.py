@@ -41,6 +41,9 @@ class NotifySettingResponse(BaseModel):
     user_id: int
     account_id: int
     created_at: datetime
+    posting_frequency: str
+    pre_create: str
+    post_mode: bool
 
 @router.post("/notify-settings", response_model=NotifySettingResponse)
 async def create_notify_setting(notify_setting: NotifySettingCreate):
@@ -195,7 +198,7 @@ async def get_persona_notify_settings(user_id: int, username: str):
             # Get notification settings
             cursor.execute(
                 """SELECT notify_id, posting_day, posting_time, sentence_length, 
-                notify_type, template_use, target_hashtag, user_id, account_id, created_at 
+                notify_type, template_use, target_hashtag, user_id, account_id, created_at,posting_frequency,pre_create,post_mode
                 FROM persona_notify WHERE user_id = %s AND account_id = %s""",
                 (user_id, account_id)
             )
@@ -213,7 +216,10 @@ async def get_persona_notify_settings(user_id: int, username: str):
                     "target_hashtag": setting[6],
                     "user_id": setting[7],
                     "account_id": setting[8],
-                    "created_at": setting[9]
+                    "created_at": setting[9],
+                    "posting_frequency": setting[10],
+                    "pre_create": setting[11],
+                    "post_mode": setting[12]
                 }
                 for setting in settings
             ]
