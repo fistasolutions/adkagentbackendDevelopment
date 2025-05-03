@@ -59,6 +59,7 @@ class TweetOutput(BaseModel):
     impact_score: float
     reach_estimate: int
     engagement_potential: float
+    scheduled_time: str
 
 class TweetsOutput(BaseModel):
     tweets: List[TweetOutput]
@@ -78,14 +79,16 @@ TEST_TWEETS = [
         hashtags=["AI", "Innovation"],
         impact_score=85.5,
         reach_estimate=5000,
-        engagement_potential=0.12
+        engagement_potential=0.12,
+        scheduled_time=(datetime.utcnow() + timedelta(hours=24)).strftime("%Y-%m-%dT%H:%M:%SZ")
     ),
     TweetOutput(
         tweet="How is your company adapting to digital transformation? Share your experiences below! #DigitalTransformation #Business",
         hashtags=["DigitalTransformation", "Business"],
         impact_score=78.2,
         reach_estimate=4500,
-        engagement_potential=0.15
+        engagement_potential=0.15,
+        scheduled_time=(datetime.utcnow() + timedelta(hours=48)).strftime("%Y-%m-%dT%H:%M:%SZ")
     )
 ]
 
@@ -207,7 +210,7 @@ COMPETITOR_TEST_DATA = {
 
 # Core agents with handoffs defined inside their bodies
 def get_tweet_agent_instructions(character_settings: str = None) -> str:
-    base_instructions = """You are a professional tweet generation expert specializing in creating natural, human-like content with an educated perspective. Your role is to:
+    base_instructions = f"""You are a professional tweet generation expert specializing in creating natural, human-like content with an educated perspective. Your role is to:
     1. Generate EXACTLY FIVE unique, natural-sounding tweets that read as if written by an educated professional
     2. Each tweet must follow these guidelines:
        - Write in a natural, conversational tone while maintaining professionalism
@@ -233,24 +236,31 @@ def get_tweet_agent_instructions(character_settings: str = None) -> str:
        - Use natural language patterns and occasional contractions
        - Include personal observations and experiences
        - Maintain a balance between professional and approachable
-       - Show personality while staying within professional boundaries
-       - Show personality while staying within professional boundaries
-    5. Return the tweets in the following JSON format:
-       {
+    5. For each tweet, suggest an optimal posting time based on:
+       - Content type (e.g., industry news, educational content, engagement posts)
+       - Target audience's timezone and activity patterns
+       - Day of the week (weekdays vs weekends)
+       - Current trends and peak engagement times
+       - IMPORTANT: Schedule times must be in the future relative to the current time ({datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")})
+       - Space out the tweets over the next 7 days
+       - Avoid scheduling tweets too close together (minimum 4 hours apart)
+    6. Return the tweets in the following JSON format:
+       {{
          "tweets": [
-           {
+           {{
              "tweet": "tweet text here",
              "hashtags": ["hashtag1", "hashtag2"],
              "impact_score": 85.5,
              "reach_estimate": 5000,
-             "engagement_potential": 0.12
-           },
+             "engagement_potential": 0.12,
+             "scheduled_time": "2024-03-21T10:00:00Z"  // Must be a future date/time
+           }},
            ... (4 more tweets)
          ],
          "total_impact_score": 427.5,
          "average_reach_estimate": 5000,
          "overall_engagement_potential": 0.12
-       }
+       }}
        """
     
     if character_settings:
@@ -260,8 +270,8 @@ def get_tweet_agent_instructions(character_settings: str = None) -> str:
     {character_settings}
     
     - Show personality while staying within professional boundaries
-    5. Return the tweets in the following JSON format:
-     
+    - Consider the character's typical posting patterns when suggesting scheduled times
+    - Ensure all scheduled times are in the future relative to the current time ({datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")})
 
     Your tweets should reflect this character's personality, tone, and style while maintaining professional standards."""
     
@@ -462,8 +472,6 @@ async def generate_tweets(request: TweetRequest):
         finally:
             conn.close()
 
-        # If character settings exist and no recent tweets, proceed with generation
-        # Update agent with character-specific instructions
         tweet_agent.instructions = get_tweet_agent_instructions(character_settings[0])
         
         run_result = await Runner.run(tweet_agent, input="generate 5 tweets")
@@ -488,18 +496,19 @@ async def generate_tweets(request: TweetRequest):
                 for tweet in result.tweets:
                     cursor.execute(
                         """
-                        INSERT INTO posts (content, created_at, user_id, account_id, status)
-                        VALUES (%s, %s, %s, %s, %s)
-                        RETURNING id, content, created_at, status
+                        INSERT INTO posts (content, created_at, user_id, account_id, status, scheduled_time)
+                        VALUES (%s, %s, %s, %s, %s, %s)
+                        RETURNING id, content, created_at, status, scheduled_time
                         """,
-                        (tweet.tweet, current_time, request.user_id, request.account_id, 'unposted')
+                        (tweet.tweet, current_time, request.user_id, request.account_id, 'unposted', tweet.scheduled_time)
                     )
                     post_data = cursor.fetchone()
                     saved_posts.append({
                         "id": post_data[0],
                         "content": post_data[1],
                         "created_at": post_data[2],
-                        "status": post_data[3]
+                        "status": post_data[3],
+                        "scheduled_time": post_data[4]
                     })
                 
                 conn.commit()
