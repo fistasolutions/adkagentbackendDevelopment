@@ -51,7 +51,7 @@ RATE_LIMIT_WINDOW = 15 * 60  # 15 minutes in seconds
 MAX_TWEETS_PER_WINDOW = 50  # Basic tier limit
 RETRY_DELAY = 60  # 1 minute delay between retries
 MAX_RETRIES = 3
-SCHEDULE_CHECK_INTERVAL = 30  # minutes to look ahead for scheduled posts
+SCHEDULE_CHECK_INTERVAL = 5  # minutes to look ahead for scheduled posts
 
 def get_twitter_auth():
     return OAuth1(
@@ -84,15 +84,18 @@ def process_tweets(tweets_to_process):
     auth = get_twitter_auth()
     posted_count = 0
     failed_tweets = []
-    
-    for tweet_id, content, user_id, account_id in tweets_to_process:
+    print(f"[CRON][DEBUG] process_tweets called with: {tweets_to_process}")
+    for row in tweets_to_process:
+        # Always use index-based access
+        tweet_id = row[0]
+        content = row[1]
+        # If more columns exist, ignore them for posting
         retry_count = 0
         while retry_count < MAX_RETRIES:
             try:
                 # Post the tweet
                 tweet_response = post_single_tweet(content, auth)
                 tweet_id_twitter = tweet_response["data"]["id"]
-                
                 # Update post status in database
                 conn = get_connection()
                 try:
@@ -110,11 +113,9 @@ def process_tweets(tweets_to_process):
                         conn.commit()
                 finally:
                     conn.close()
-                
                 posted_count += 1
                 time.sleep(2)  # 2 second delay between tweets
                 break
-                
             except HTTPException as e:
                 if e.status_code == 429:  # Rate limit exceeded
                     if retry_count < MAX_RETRIES - 1:
@@ -132,7 +133,6 @@ def process_tweets(tweets_to_process):
                     "error": str(e)
                 })
                 break
-    
     return posted_count, failed_tweets
 
 @router.post("/post_tweets")
@@ -228,6 +228,7 @@ def process_due_scheduled_tweets():
                     else:
                         now = datetime.utcnow()
                         for row in all_unposted:
+                            print(f"[CRON][DEBUG] Row length: {len(row)}, Row: {row}")
                             post_id = row[0]
                             content = row[1]
                             scheduled_time = row[2]
