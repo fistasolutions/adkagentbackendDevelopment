@@ -202,10 +202,10 @@ def process_due_scheduled_tweets():
                     WHERE p.status = 'unposted'
                     AND p.scheduled_time IS NOT NULL
                     AND p.scheduled_time <= NOW()
-                    AND p.scheduled_time >= NOW() - INTERVAL %s MINUTES
+                    AND p.scheduled_time >= NOW() - INTERVAL %s
                     ORDER BY p.scheduled_time ASC
                     """,
-                    (SCHEDULE_CHECK_INTERVAL,)
+                    (f"{SCHEDULE_CHECK_INTERVAL} minutes",)
                 )
                 scheduled_tweets = cursor.fetchall()
                 if scheduled_tweets:
