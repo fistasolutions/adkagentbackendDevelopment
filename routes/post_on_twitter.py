@@ -195,9 +195,7 @@ def process_due_scheduled_tweets():
         conn = get_connection()
         try:
             with conn.cursor() as cursor:
-                # Get current time in UTC
                 now = datetime.now(timezone.utc)
-                
                 cursor.execute(
                     """
                     SELECT p.id, p.content, p.user_id, p.account_id, p.scheduled_time
