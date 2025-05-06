@@ -13,6 +13,7 @@ class UserResponse(BaseModel):
     fullname: str
     email: EmailStr
     enterprise_id: Optional[str] = None
+    role: Optional[str] = None
 
     class Config:
         from_attributes = True 
