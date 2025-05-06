@@ -186,6 +186,8 @@ async def post_tweets(request: PostTweetsRequest):
             detail=f"Error processing tweets: {str(e)}"
         )
 
+
+@router.get("/cron/process-scheduled-tweets")
 def process_due_scheduled_tweets():
     """
     This function processes all scheduled tweets that are due.
