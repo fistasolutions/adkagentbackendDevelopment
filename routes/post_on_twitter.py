@@ -228,7 +228,10 @@ def process_due_scheduled_tweets():
                     else:
                         now = datetime.utcnow()
                         for row in all_unposted:
-                            post_id, content, scheduled_time, status = row
+                            post_id = row[0]
+                            content = row[1]
+                            scheduled_time = row[2]
+                            status = row[3]
                             if scheduled_time > now:
                                 time_left = scheduled_time - now
                                 print(f"[CRON][DEBUG] Post ID {post_id} is scheduled in {time_left}. Content: {content}")
