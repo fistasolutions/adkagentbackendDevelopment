@@ -1,4 +1,5 @@
 from fastapi import APIRouter, HTTPException, Depends, Response
+from fastapi import FastAPI
 from db.db import get_connection
 from models import UserCreate, UserResponse
 from typing import List
@@ -10,10 +11,14 @@ import requests
 from requests_oauthlib import OAuth1
 import os
 from dotenv import load_dotenv
+import time
+from datetime import datetime, timedelta
 
 load_dotenv()
 
 router = APIRouter()
+
+app = FastAPI()
 
 class UserUpdate(BaseModel):
     fullname: str | None = None
@@ -33,9 +38,9 @@ class LoginResponse(BaseModel):
     enterprise_id: str
     message: str
 
-class TweetRequest(BaseModel):
-    text: str
-    post_id: str
+class PostTweetsRequest(BaseModel):
+    user_id: int
+    account_id: int
 
 # Twitter API credentials
 TWITTER_API_KEY = os.getenv("TWITTER_API_KEY")
@@ -43,138 +48,182 @@ TWITTER_API_SECRET = os.getenv("TWITTER_API_SECRET")
 TWITTER_ACCESS_TOKEN = os.getenv("TWITTER_ACCESS_TOKEN")
 TWITTER_ACCESS_TOKEN_SECRET = os.getenv("TWITTER_ACCESS_TOKEN_SECRET")
 
-@router.post("/post_tweet")
-async def post_tweet(tweet: TweetRequest):
-    try:
-        # OAuth 1.0a authentication
-        auth = OAuth1(
-            TWITTER_API_KEY,
-            TWITTER_API_SECRET,
-            TWITTER_ACCESS_TOKEN,
-            TWITTER_ACCESS_TOKEN_SECRET
+# Rate limit constants
+RATE_LIMIT_WINDOW = 15 * 60  # 15 minutes in seconds
+MAX_TWEETS_PER_WINDOW = 50  # Basic tier limit
+RETRY_DELAY = 60  # 1 minute delay between retries
+MAX_RETRIES = 3
+SCHEDULE_CHECK_INTERVAL = 5  # minutes to look ahead for scheduled posts
+
+def get_twitter_auth():
+    return OAuth1(
+        TWITTER_API_KEY,
+        TWITTER_API_SECRET,
+        TWITTER_ACCESS_TOKEN,
+        TWITTER_ACCESS_TOKEN_SECRET
+    )
+
+def post_single_tweet(text: str, auth: OAuth1) -> dict:
+    url = "https://api.twitter.com/2/tweets"
+    payload = {"text": text}
+    
+    response = requests.post(url, auth=auth, json=payload)
+    
+    if response.status_code == 201:
+        return response.json()
+    elif response.status_code == 429:  # Rate limit exceeded
+        raise HTTPException(
+            status_code=429,
+            detail="Twitter rate limit exceeded. Please try again later."
+        )
+    else:
+        raise HTTPException(
+            status_code=response.status_code,
+            detail=f"Failed to post tweet: {response.text}"
         )
 
-        # Twitter API endpoint
-        url = "https://api.twitter.com/2/tweets"
-        
-        # Request payload
-        payload = {
-            "text": tweet.text
-        }
-
-        # Make the request
-        response = requests.post(
-            url,
-            auth=auth,
-            json=payload
-        )
-
-        # Check if the request was successful
-        if response.status_code == 201:
-            # Update post status in database
-            tweet_id = response.json()["data"]["id"]
-            conn = get_connection()
+def process_tweets(tweets_to_process):
+    auth = get_twitter_auth()
+    posted_count = 0
+    failed_tweets = []
+    
+    for tweet_id, content, user_id, account_id in tweets_to_process:
+        retry_count = 0
+        while retry_count < MAX_RETRIES:
             try:
-                with conn.cursor() as cursor:
-                    cursor.execute(
-                        """
-                        UPDATE posts 
-                        SET status = 'posted', 
-                            posted_time = NOW(),
-                            posted_id = %s
-                        WHERE id = %s
-                        RETURNING id, status, posted_time, posted_id
-                        """,
-                        (tweet_id, tweet.post_id)
-                    )
-                    updated_post = cursor.fetchone()
-                    conn.commit()
-                    
-                    return {
-                        "status": "success", 
-                        "tweet": response.json(),
-                        "post": {
-                            "id": updated_post[0],
-                            "status": updated_post[1],
-                            "posted_time": updated_post[2],
-                            "posted_id": updated_post[3]
-                        }
-                    }
-            except Exception as db_error:
-                raise HTTPException(
-                    status_code=500,
-                    detail=f"Failed to update post status: {str(db_error)}"
-                )
-            finally:
-                conn.close()
-        else:
-            raise HTTPException(
-                status_code=response.status_code,
-                detail=f"Failed to post tweet: {response.text}"
-            )
+                # Post the tweet
+                tweet_response = post_single_tweet(content, auth)
+                tweet_id_twitter = tweet_response["data"]["id"]
+                
+                # Update post status in database
+                conn = get_connection()
+                try:
+                    with conn.cursor() as cursor:
+                        cursor.execute(
+                            """
+                            UPDATE posts 
+                            SET status = 'posted', 
+                                posted_time = NOW(),
+                                posted_id = %s
+                            WHERE id = %s
+                            """,
+                            (tweet_id_twitter, tweet_id)
+                        )
+                        conn.commit()
+                finally:
+                    conn.close()
+                
+                posted_count += 1
+                time.sleep(2)  # 2 second delay between tweets
+                break
+                
+            except HTTPException as e:
+                if e.status_code == 429:  # Rate limit exceeded
+                    if retry_count < MAX_RETRIES - 1:
+                        time.sleep(RETRY_DELAY)
+                        retry_count += 1
+                        continue
+                failed_tweets.append({
+                    "tweet_id": tweet_id,
+                    "error": str(e.detail)
+                })
+                break
+            except Exception as e:
+                failed_tweets.append({
+                    "tweet_id": tweet_id,
+                    "error": str(e)
+                })
+                break
+    
+    return posted_count, failed_tweets
 
+@router.post("/post_tweets")
+async def post_tweets(request: PostTweetsRequest):
+    try:
+        conn = get_connection()
+        try:
+            with conn.cursor() as cursor:
+                # Fetch all unposted tweets for the user and account
+                cursor.execute(
+                    """
+                    SELECT id, content 
+                    FROM posts 
+                    WHERE user_id = %s 
+                    AND account_id = %s 
+                    AND status = 'unposted'
+                    AND (scheduled_time IS NULL OR scheduled_time <= NOW())
+                    ORDER BY COALESCE(scheduled_time, created_at) ASC
+                    """,
+                    (request.user_id, request.account_id)
+                )
+                unposted_tweets = cursor.fetchall()
+                
+                if not unposted_tweets:
+                    return {
+                        "status": "success",
+                        "message": "No unposted tweets found",
+                        "posted_count": 0
+                    }
+                
+                posted_count, failed_tweets = process_tweets(unposted_tweets)
+                
+                return {
+                    "status": "success",
+                    "posted_count": posted_count,
+                    "failed_tweets": failed_tweets,
+                    "message": f"Successfully posted {posted_count} tweets. {len(failed_tweets)} tweets failed."
+                }
+                
+        except Exception as db_error:
+            raise HTTPException(
+                status_code=500,
+                detail=f"Database error: {str(db_error)}"
+            )
+        finally:
+            conn.close()
+            
     except Exception as e:
         raise HTTPException(
             status_code=500,
-            detail=f"Error posting tweet: {str(e)}"
+            detail=f"Error processing tweets: {str(e)}"
         )
 
-
+def process_due_scheduled_tweets():
+    """
+    This function processes all scheduled tweets that are due.
+    It is called on app startup for Railway cron.
+    """
     try:
         conn = get_connection()
-        with conn.cursor() as cursor:
-            cursor.execute("SELECT user_id, fullname, email, enterprise_id FROM users WHERE user_id = %s", (user_id,))
-            user = cursor.fetchone()
-            if not user:
-                raise HTTPException(status_code=404, detail="User not found")
-            return {"user_id": user[0], "fullname": user[1], "email": user[2], "enterprise_id": user[3]}
+        try:
+            with conn.cursor() as cursor:
+                cursor.execute(
+                    """
+                    SELECT p.id, p.content, p.user_id, p.account_id
+                    FROM posts p
+                    WHERE p.status = 'unposted'
+                    AND p.scheduled_time IS NOT NULL
+                    AND p.scheduled_time <= NOW()
+                    AND p.scheduled_time >= NOW() - INTERVAL %s MINUTES
+                    ORDER BY p.scheduled_time ASC
+                    """,
+                    (SCHEDULE_CHECK_INTERVAL,)
+                )
+                scheduled_tweets = cursor.fetchall()
+                if scheduled_tweets:
+                    posted_count, failed_tweets = process_tweets(scheduled_tweets)
+                    print(f"[CRON] Posted {posted_count} scheduled tweets. {len(failed_tweets)} failed.")
+                else:
+                    print("[CRON] No scheduled tweets to process.")
+        finally:
+            conn.close()
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-    finally:
-        conn.close()
+        print(f"[CRON] Error processing scheduled tweets: {str(e)}")
 
+# --- FastAPI startup event ---
+@app.on_event("startup")
+def run_scheduled_tweet_cron():
+    process_due_scheduled_tweets()
 
-    try:
-        conn = get_connection()
-        with conn.cursor() as cursor:
-            # Check if user exists
-            cursor.execute("SELECT user_id FROM users WHERE user_id = %s", (user_id,))
-            if not cursor.fetchone():
-                raise HTTPException(status_code=404, detail="User not found")
-            
-            # Hash the password
-            hashed_password = bcrypt.hashpw(user_update.password.encode('utf-8'), bcrypt.gensalt())
-            
-            # Build update query dynamically based on provided fields
-            update_fields = []
-            values = []
-            if user_update.fullname is not None:
-                update_fields.append("fullname = %s")
-                values.append(user_update.fullname)
-            if user_update.email is not None:
-                update_fields.append("email = %s")
-                values.append(user_update.email)
-            if user_update.password is not None:
-                update_fields.append("password = %s")
-                values.append(hashed_password.decode('utf-8'))
-            if not update_fields:
-                raise HTTPException(status_code=400, detail="No fields to update")
-            
-            # Add user_id to values
-            values.append(user_id)
-            
-            # Execute update
-            query = f"UPDATE users SET {', '.join(update_fields)} WHERE user_id = %s RETURNING user_id, fullname, email"
-            cursor.execute(query, values)
-            updated_user = cursor.fetchone()
-            conn.commit()
-            
-            return {
-                "user_id": updated_user[0],
-                "fullname": updated_user[1],
-                "email": updated_user[2]
-            }
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-    finally:
-        conn.close()
+# If you use FastAPI's APIRouter, include it as usual
+app.include_router(router)
