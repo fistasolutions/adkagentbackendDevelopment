@@ -51,7 +51,7 @@ RATE_LIMIT_WINDOW = 15 * 60  # 15 minutes in seconds
 MAX_TWEETS_PER_WINDOW = 50  # Basic tier limit
 RETRY_DELAY = 60  # 1 minute delay between retries
 MAX_RETRIES = 3
-SCHEDULE_CHECK_INTERVAL = 5  # minutes to look ahead for scheduled posts
+SCHEDULE_CHECK_INTERVAL = 30  # minutes to look ahead for scheduled posts
 
 def get_twitter_auth():
     return OAuth1(
@@ -197,7 +197,7 @@ def process_due_scheduled_tweets():
             with conn.cursor() as cursor:
                 cursor.execute(
                     """
-                    SELECT p.id, p.content, p.user_id, p.account_id
+                    SELECT p.id, p.content, p.user_id, p.account_id, p.scheduled_time
                     FROM posts p
                     WHERE p.status = 'unposted'
                     AND p.scheduled_time IS NOT NULL
@@ -213,6 +213,27 @@ def process_due_scheduled_tweets():
                     print(f"[CRON] Posted {posted_count} scheduled tweets. {len(failed_tweets)} failed.")
                 else:
                     print("[CRON] No scheduled tweets to process.")
+                    # Debug: Show why no post is scheduled
+                    cursor.execute(
+                        """
+                        SELECT p.id, p.content, p.scheduled_time, p.status
+                        FROM posts p
+                        WHERE p.status = 'unposted' AND p.scheduled_time IS NOT NULL
+                        ORDER BY p.scheduled_time ASC
+                        """
+                    )
+                    all_unposted = cursor.fetchall()
+                    if not all_unposted:
+                        print("[CRON][DEBUG] There are no unposted scheduled tweets in the database.")
+                    else:
+                        now = datetime.utcnow()
+                        for row in all_unposted:
+                            post_id, content, scheduled_time, status = row
+                            if scheduled_time > now:
+                                time_left = scheduled_time - now
+                                print(f"[CRON][DEBUG] Post ID {post_id} is scheduled in {time_left}. Content: {content}")
+                            else:
+                                print(f"[CRON][DEBUG] Post ID {post_id} is not being picked up for unknown reason. Scheduled time: {scheduled_time}, Now: {now}")
         finally:
             conn.close()
     except Exception as e:
