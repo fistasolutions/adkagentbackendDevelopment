@@ -18,8 +18,6 @@ load_dotenv()
 
 router = APIRouter()
 
-app = FastAPI()
-
 class UserUpdate(BaseModel):
     fullname: str | None = None
     email: str | None = None
@@ -220,10 +218,3 @@ def process_due_scheduled_tweets():
     except Exception as e:
         print(f"[CRON] Error processing scheduled tweets: {str(e)}")
 
-# --- FastAPI startup event ---
-@app.on_event("startup")
-def run_scheduled_tweet_cron():
-    process_due_scheduled_tweets()
-
-# If you use FastAPI's APIRouter, include it as usual
-app.include_router(router)

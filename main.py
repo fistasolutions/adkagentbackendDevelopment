@@ -12,7 +12,7 @@ from routes.twitter_account import router as twitter_account_router
 from routes.agent_settings import router as agent_settings_router
 from routes.notify_settings import router as notify_settings_router
 from routes.daily_tweet_generator import router as daily_tweet_generator_router
-from routes.post_on_twitter import router as post_on_twitter_router
+from routes.post_on_twitter import router as post_on_twitter_router, process_due_scheduled_tweets
 from routes.compitterAccounts import router as compitter_accounts_router
 from routes.risk_scoring_agent import router as risk_scoring_agent_router
 from routes.monthly_report import router as monthly_report_router
@@ -58,6 +58,12 @@ app.include_router(compitter_accounts_router, prefix="/api")
 app.include_router(risk_scoring_agent_router, prefix="/api")    
 app.include_router(monthly_report_router, prefix="/api")
 app.include_router(post_analytics_router, prefix="/api")
+
+@app.on_event("startup")
+def run_scheduled_tweet_cron():
+    print("[CRON] Startup event triggered")
+    process_due_scheduled_tweets()
+
 class TweetGenerationRequest(BaseModel):
     learning_data: str
     account_id: int
