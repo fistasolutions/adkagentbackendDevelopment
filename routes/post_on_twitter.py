@@ -12,7 +12,7 @@ from requests_oauthlib import OAuth1
 import os
 from dotenv import load_dotenv
 import time
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 load_dotenv()
 
@@ -195,17 +195,20 @@ def process_due_scheduled_tweets():
         conn = get_connection()
         try:
             with conn.cursor() as cursor:
+                # Get current time in UTC
+                now = datetime.now(timezone.utc)
+                
                 cursor.execute(
                     """
                     SELECT p.id, p.content, p.user_id, p.account_id, p.scheduled_time
                     FROM posts p
                     WHERE p.status = 'unposted'
                     AND p.scheduled_time IS NOT NULL
-                    AND p.scheduled_time <= NOW()
-                    AND p.scheduled_time >= NOW() - INTERVAL %s
+                    AND p.scheduled_time <= %s
+                    AND p.scheduled_time >= %s
                     ORDER BY p.scheduled_time ASC
                     """,
-                    (f"{SCHEDULE_CHECK_INTERVAL} minutes",)
+                    (now, now - timedelta(minutes=SCHEDULE_CHECK_INTERVAL))
                 )
                 scheduled_tweets = cursor.fetchall()
                 if scheduled_tweets:
@@ -226,7 +229,6 @@ def process_due_scheduled_tweets():
                     if not all_unposted:
                         print("[CRON][DEBUG] There are no unposted scheduled tweets in the database.")
                     else:
-                        now = datetime.utcnow()
                         for row in all_unposted:
                             print(f"[CRON][DEBUG] Row length: {len(row)}, Row: {row}")
                             post_id = row[0]
