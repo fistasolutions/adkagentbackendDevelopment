@@ -7,6 +7,7 @@ import os
 from openai import OpenAI
 import pinecone
 from pinecone import Pinecone
+from db.db import get_connection
 
 router = APIRouter()
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
@@ -53,16 +54,34 @@ async def get_characterSettings(persona_id: str) -> CharacterSettings:
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.post("/tweet-agents")
-async def create_tweet_agent():
+@router.post("/tweet-agents/{account_id}")
+async def create_tweet_agent(account_id: int):
     """Create a new tweet generation agent"""
     try:
+        # First get the character settings from database
+        conn = get_connection()
+        with conn.cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT character_settings 
+                FROM personas 
+                WHERE account_id = %s
+                """,
+                (account_id,)
+            )
+            result = cursor.fetchone()
+            if not result:
+                raise HTTPException(
+                    status_code=404,
+                    detail="Character settings not found for this account. Please set up character settings first."
+                )
+            character_settings = result[0]
         
         agent_id = str(uuid.uuid4())
         settings = TweetAgentSettings(
             id=agent_id,
             characterSettings=CharacterSettings(
-                characterSettings="You are a social media expert who creates engaging and relevant tweets."
+                characterSettings=character_settings
             )
         )
         
@@ -78,6 +97,9 @@ async def create_tweet_agent():
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        if 'conn' in locals():
+            conn.close()
 
 @router.post("/chat-agents")
 async def create_chat_agent(request: CreateChatAgentRequest):

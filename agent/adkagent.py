@@ -52,9 +52,8 @@ class ADKAgent:
             """
         
         return f"""You are a tweet generation assistant.
-        
         {character_context}
-        
+        if language user mention its language, then translate the tweets to the language of the user.If user not mention its language, then translate the tweets to the language Japanese.
         Generate two tweets that match the character context above.
         Keep tweets under 280 characters.
         Return the tweets in a structured format with tweet1 and tweet2 fields."""
