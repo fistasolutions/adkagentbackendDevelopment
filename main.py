@@ -73,6 +73,7 @@ class TweetFetchRequest(BaseModel):
     user_id: int
     account_id: int
 
+
 @app.on_event("startup")
 async def startup_event():
     # Run the process_due_scheduled_tweets function when the application starts
