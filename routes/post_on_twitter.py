@@ -7,9 +7,6 @@ import os
 from dotenv import load_dotenv
 import time
 from datetime import datetime, timedelta, timezone
-from apscheduler.schedulers.asyncio import AsyncIOScheduler
-from apscheduler.jobstores.memory import MemoryJobStore
-from contextlib import suppress
 load_dotenv()
 router = APIRouter()
 class PostTweetsRequest(BaseModel):
@@ -199,71 +196,4 @@ def process_due_scheduled_tweets():
             conn.close()
     except Exception as e:
         print(f"[CRON] Error processing scheduled tweets: {str(e)}")
-
-
-scheduler = AsyncIOScheduler()
-scheduler.add_jobstore(MemoryJobStore(), 'default')
-def start_scheduler():
-    if not scheduler.running:
-        scheduler.start()
-def shutdown_scheduler():
-    try:
-        if scheduler.running:
-            scheduler.shutdown()
-    except RuntimeError as e:
-        if "Event loop is closed" in str(e):
-            pass  
-        else:
-            raise
-def schedule_tweet_job():
-    if scheduler.get_job('tweet_job'):
-        scheduler.remove_job('tweet_job')
-    scheduler.add_job(
-        process_due_scheduled_tweets,
-        'interval',
-        minutes=1,
-        id='tweet_job'
-    )
-app = None
-with suppress(ImportError):
-    import main
-    app = getattr(main, 'app', None)
-if app:
-    @app.on_event("startup")
-    async def on_startup():
-        start_scheduler()
-        schedule_tweet_job()
-
-    @app.on_event("shutdown")
-    async def on_shutdown():
-        shutdown_scheduler()
-else:
-    pass
-@router.post("/schedule_tweet")
-async def schedule_tweet(request: ScheduledTweetRequest):
-    try:
-        def add_scheduled_tweet():
-            conn = get_connection()
-            try:
-                with conn.cursor() as cursor:
-                    cursor.execute(
-                        """
-                        INSERT INTO posts (content, scheduled_time, user_id, account_id, status)
-                        VALUES (%s, %s, %s, %s, 'unposted')
-                        """,
-                        (request.content, request.scheduled_time, request.user_id, request.account_id)
-                    )
-                    conn.commit()
-            finally:
-                conn.close()
-        scheduler.add_job(
-            add_scheduled_tweet,
-            'date',
-            run_date=request.scheduled_time,
-            id=f"tweet_{request.user_id}_{request.scheduled_time.timestamp()}",
-            replace_existing=True
-        )
-        return {"status": "success", "message": "Tweet scheduled successfully."}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
 
