@@ -1,41 +1,3 @@
-# import asyncio
-# from openai import OpenAI
-# from agents import Agent, Runner, set_default_openai_key
-# import os
-# from dotenv import load_dotenv
-# import logging
-
-# # Set up logging
-# logging.basicConfig(
-#     level=logging.INFO,
-#     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-#     handlers=[
-#         logging.FileHandler('tweet_generator.log', encoding='utf-8')
-#     ]
-# )
-# logger = logging.getLogger(__name__)
-
-# # Load environment variables
-# load_dotenv()
-
-# # Initialize OpenAI API key
-# openai_api_key = os.getenv("OPENAI_API_KEY")
-# set_default_openai_key(openai_api_key)
-
-# # Initialize tweet generator agent
-# tweet_generator_agent = Agent(
-#     name="Tweet Generator",
-#     instructions="You are an expert at creating engaging and relevant tweets. Your are a japanese twitter user and your tweets should be in japanese."
-# )
-
-# async def generate_tweet(learning_data: str) -> list[str]:
-#     """Generate tweets based on learning data and return them in reverse order."""
-#     tweets_result = await Runner.run(tweet_generator_agent, f"Generate 5 tweets based on: {learning_data}")
-#     tweets = [tweet for tweet in tweets_result.final_output.split("\n") if tweet.strip() and not tweet.startswith("もちろん！")]
-#     formatted_tweets = [f"tweet {i+1}: {tweet}" for i, tweet in enumerate(reversed(tweets))]
-#     logger.info(f"Generated {len(tweets)} formatted tweets")
-#     return formatted_tweets
-
 from typing import Dict, List, Optional, Any
 from agents import Agent, Runner, function_tool
 from pydantic import BaseModel
@@ -73,52 +35,6 @@ class AnalysisOutput(BaseModel):
     patterns: Dict[str, Any]
     metrics: Dict[str, float]
 
-TEST_TWEETS = [
-    TweetOutput(
-        tweet="Exciting news in AI! New breakthroughs in natural language processing are revolutionizing how we interact with technology. #AI #Innovation",
-        hashtags=["AI", "Innovation"],
-        impact_score=85.5,
-        reach_estimate=5000,
-        engagement_potential=0.12,
-        scheduled_time=(datetime.utcnow() + timedelta(hours=24)).strftime("%Y-%m-%dT%H:%M:%SZ")
-    ),
-    TweetOutput(
-        tweet="How is your company adapting to digital transformation? Share your experiences below! #DigitalTransformation #Business",
-        hashtags=["DigitalTransformation", "Business"],
-        impact_score=78.2,
-        reach_estimate=4500,
-        engagement_potential=0.15,
-        scheduled_time=(datetime.utcnow() + timedelta(hours=48)).strftime("%Y-%m-%dT%H:%M:%SZ")
-    )
-]
-
-TEST_ANALYSIS = AnalysisOutput(
-    insights=[
-        "High engagement during morning hours",
-        "Educational content performs best",
-        "Industry news drives most shares"
-    ],
-    recommendations=[
-        "Increase morning post frequency",
-        "Focus on educational content",
-        "Include more industry insights"
-    ],
-    patterns={
-        "best_performing_times": ["09:00", "15:00"],
-        "content_types": {
-            "educational": 40,
-            "news": 30,
-            "engagement": 30
-        }
-    },
-    metrics={
-        "average_engagement": 4.5,
-        "reach_growth": 12.3,
-        "conversion_rate": 2.1
-    }
-)
-
-# Function tool output models
 class SentimentAnalysisOutput(BaseModel):
     sentiment_score: float
     confidence: float
@@ -152,71 +68,19 @@ class TweetUpdateRequest(BaseModel):
     content: Optional[str] = None
     scheduled_time: Optional[str] = None
 
-# Test data for role model analysis
-ROLE_MODEL_TEST_DATA = {
-    "communication_style": "Professional and engaging",
-    "tone": "Balanced mix of informative and conversational",
-    "engagement_patterns": {
-        "posting_frequency": "3-5 times per day",
-        "best_performing_times": ["09:00", "12:00", "15:00", "18:00"],
-        "average_engagement_rate": 4.5
-    },
-    "content_structure": {
-        "hook_style": "Question-based or surprising fact",
-        "body_length": "280 characters",
-        "hashtag_usage": "2-3 relevant hashtags"
-    }
-}
-
-# Test data for industry standards
-INDUSTRY_STANDARD_TEST_DATA = {
-    "trends": [
-        "AI-powered automation",
-        "Sustainable business practices",
-        "Remote work optimization",
-        "Digital transformation"
-    ],
-    "content_patterns": {
-        "educational_posts": 40,
-        "industry_news": 30,
-        "thought_leadership": 20,
-        "engagement_posts": 10
-    },
-    "best_practices": [
-        "Use data-driven insights",
-        "Maintain consistent branding",
-        "Engage with audience regularly",
-        "Share industry expertise"
-    ]
-}
-
-# Test data for competitor analysis
-COMPETITOR_TEST_DATA = {
-    "content_effectiveness": {
-        "average_engagement_rate": 3.8,
-        "best_performing_content": "Industry insights",
-        "worst_performing_content": "Promotional posts"
-    },
-    "engagement_patterns": {
-        "peak_engagement_times": ["10:00", "14:00", "16:00"],
-        "average_response_time": "2 hours",
-        "engagement_types": {
-            "likes": 45,
-            "retweets": 30,
-            "replies": 25
-        }
-    },
-    "posting_schedule": {
-        "frequency": "4 times per day",
-        "days": ["Monday", "Wednesday", "Friday"],
-        "times": ["09:00", "12:00", "15:00", "18:00"]
-    }
-}
-
-# Core agents with handoffs defined inside their bodies
-def get_tweet_agent_instructions(character_settings: str = None) -> str:
+def get_tweet_agent_instructions(character_settings: str = None, competitor_data: List[str] = None, previous_tweets: List[str] = None) -> str:
     base_instructions = f"""You are a professional tweet generation expert specializing in creating natural, human-like content with an educated perspective. Your role is to:
     1. Generate EXACTLY FIVE unique, natural-sounding tweets that read as if written by an educated professional
+    **
+    if user give any its language in the character settings, you have to write in that language. if not, write in japanese.
+    these are the previous tweets:
+    {previous_tweets}
+    these are the competitor data:
+    {competitor_data}
+    
+    you have to avoid repeating the same content as the previous tweets.
+    Analyze the previous tweets and the competitor data and generate tweets that are unique and engaging.
+    **
     2. Each tweet must follow these guidelines:
        - Write in a natural, conversational tone while maintaining professionalism
        - Include personal insights and observations that feel authentic
@@ -268,66 +132,25 @@ def get_tweet_agent_instructions(character_settings: str = None) -> str:
        }}
        """
     
+    full_instructions = base_instructions
+    
     if character_settings:
-        return f"""{base_instructions}
+        full_instructions += f"""
 
     Additionally, you must follow these character-specific guidelines:
     {character_settings}
-    
     - Show personality while staying within professional boundaries
     - Consider the character's typical posting patterns when suggesting scheduled times
     - Ensure all scheduled times are in the future relative to the current time ({datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")})
 
     Your tweets should reflect this character's personality, tone, and style while maintaining professional standards."""
     
-    return base_instructions
+    return full_instructions
 
 tweet_agent = Agent(
     name="Tweet Agent",
     instructions=get_tweet_agent_instructions(),
     output_type=TweetsOutput,
-    handoffs=[
-        "Role Model Analysis Agent",
-        "Industry Standard Analysis Agent",
-        "Competitor Analysis Agent",
-        "Trend Strategy Agent",
-        "Risk Analyzer Agent",
-        "Impact Analyzer Agent",
-        "Persona Agent"
-    ]
-)
-
-role_model_agent = Agent(
-    name="Role Model Analysis Agent",
-    instructions=f"""You are an expert in analyzing and learning from successful social media accounts. Your role is to:
-    1. Analyze role model accounts using test data: {ROLE_MODEL_TEST_DATA}
-    2. Extract best practices and patterns (e.g., communication style, tone, engagement tactics)
-    3. Identify transferable strategies
-    4. Provide specific recommendations to the Tweet Agent for implementation""",
-    output_type=AnalysisOutput,
-    handoffs=["Tweet Agent"]
-)
-
-industry_standard_agent = Agent(
-    name="Industry Standard Analysis Agent",
-    instructions=f"""You are an expert in industry trends and standards analysis. Your role is to:
-    1. Monitor and analyze industry standards using test data: {INDUSTRY_STANDARD_TEST_DATA}
-    2. Track trends and emerging topics
-    3. Identify content patterns and themes
-    4. Provide insights to the Tweet Agent for timely and relevant content""",
-    output_type=AnalysisOutput,
-    handoffs=["Tweet Agent"]
-)
-
-competitor_analysis_agent = Agent(
-    name="Competitor Analysis Agent",
-    instructions=f"""You are an expert in competitor analysis and strategy. Your role is to:
-    1. Analyze competitor accounts using test data: {COMPETITOR_TEST_DATA}
-    2. Track and compare performance metrics
-    3. Identify successful patterns and strategies (e.g., content types, engagement tactics)
-    4. Provide actionable recommendations to the Tweet Agent""",
-    output_type=AnalysisOutput,
-    handoffs=["Tweet Agent"]
 )
 
 trend_strategy_agent = Agent(
@@ -452,7 +275,7 @@ async def generate_tweets(request: TweetRequest):
     """Generate five high-quality tweets using the Tweet Agent."""
     print("Generating tweets...")
     try:
-        # First check for character settings
+        # First check for character settings and get competitor data
         conn = get_connection()
         try:
             with conn.cursor() as cursor:
@@ -473,6 +296,22 @@ async def generate_tweets(request: TweetRequest):
                         status_code=400,
                         detail="Character settings not found. Please set up your character settings before generating tweets."
                     )
+                
+                # Get ALL competitor usernames and their content for today
+                cursor.execute(
+                    """
+                    SELECT compititers_username, content
+                    FROM compititers_data 
+                    WHERE user_id = %s 
+                    AND account_id = %s
+                    AND created_at::date = CURRENT_DATE
+                    """,
+                    (request.user_id, request.account_id)
+                )
+                competitor_rows = cursor.fetchall()
+                competitor_data = [
+                    f"Username: {row[0]}, Content: {row[1]}" for row in competitor_rows if row[0] and row[1]
+                ]
                 
                 # Then check for recent tweets
                 current_time = datetime.utcnow()
@@ -501,9 +340,8 @@ async def generate_tweets(request: TweetRequest):
         # Get previous tweets to avoid duplicates
         previous_tweets = await get_previous_tweets(request.user_id, request.account_id)
         
-        # Update tweet agent instructions to include previous tweets
-        tweet_agent.instructions = get_tweet_agent_instructions(character_settings[0])
-        tweet_agent.instructions += f"\n\nPlease avoid generating tweets similar to these previous tweets:\n" + "\n".join(previous_tweets)
+        # Update tweet agent instructions to include previous tweets and competitor data
+        tweet_agent.instructions = get_tweet_agent_instructions(character_settings[0], competitor_data, previous_tweets)
         
         run_result = await Runner.run(tweet_agent, input="generate 5 tweets")
         result = run_result.final_output
