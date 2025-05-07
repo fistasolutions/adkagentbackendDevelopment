@@ -458,253 +458,270 @@ async def make_twitter_request(client, url, headers, params, max_retries=5):
             logger.warning(f"Request failed, retrying... Error: {str(e)}")
             await asyncio.sleep(5)  # Basic retry delay
 
-@router.post("/analyze-multiple-users/{userId}/{account_id}")
-async def analyze_multiple_users(userId: int, account_id: int, request: UsersRequest):
+class MultipleAccountsRequest(BaseModel):
+    usernames: List[str]
+    user_id: int
+    account_id: int
+
+async def wait_for_rate_limit_reset(reset_time: int):
+    """Wait until the rate limit reset time"""
+    current_time = int(time.time())
+    wait_time = max(0, reset_time - current_time)
+    if wait_time > 0:
+        logger.info(f"Rate limit reached. Waiting {wait_time} seconds until reset...")
+        await asyncio.sleep(wait_time)
+
+@router.post("/analyze-multiple-accounts")
+async def analyze_multiple_accounts(request: MultipleAccountsRequest):
     """
-    Analyze multiple Twitter users and return their aggregated data.
-    Also saves metrics to competitor_metrics and raw data to compititers_data tables.
-    Only saves new data if existing data is older than 48 hours.
-    Implements retry logic for rate limits.
+    Fetch Twitter data for multiple accounts over the last 7 days.
+    Returns data for each account including tweets, metrics, and engagement.
+    Saves data to compititers_data table for each account.
+    Skips API call if data exists from last 2 hours.
     """
     try:
-        results = []
+        results = {}
         conn = get_connection()
+        pending_accounts = request.usernames.copy()
         
-        for account_key, username in request.accounts.items():
-            try:
-                # Check if we have recent data in both tables
-                with conn.cursor() as cursor:
-                    cursor.execute(
-                        """
-                        SELECT created_at 
-                        FROM compititers_data 
-                        WHERE user_id = %s AND account_id = %s
-                        ORDER BY created_at DESC 
-                        LIMIT 1
-                        """,
-                        (userId, account_id)
-                    )
-                    compititers_data = cursor.fetchone()
-                    
-                    cursor.execute(
-                        """
-                        SELECT collected_at 
-                        FROM competitor_metrics 
-                        WHERE user_id = %s AND account_id = %s
-                        ORDER BY collected_at DESC 
-                        LIMIT 1
-                        """,
-                        (userId, account_id)
-                    )
-                    metrics_data = cursor.fetchone()
-                
-                # If we have recent data in both tables (less than 48 hours old), skip saving
-                if compititers_data and metrics_data:
-                    compititers_time = compititers_data[0]
-                    metrics_time = metrics_data[0]
-                    current_time = datetime.datetime.now(datetime.timezone.utc)
-                    
-                    # Ensure both times are timezone-aware
-                    if compititers_time.tzinfo is None:
-                        compititers_time = compititers_time.replace(tzinfo=datetime.timezone.utc)
-                    if metrics_time.tzinfo is None:
-                        metrics_time = metrics_time.replace(tzinfo=datetime.timezone.utc)
-                    
-                    if (current_time - compititers_time).total_seconds() < 48 * 3600 and \
-                       (current_time - metrics_time).total_seconds() < 48 * 3600:
-                        logger.info(f"Skipping {username} - data is less than 48 hours old")
-                        continue
-                
-                # Get user ID first with retry
-                user_id = None
-                for attempt in range(5):
-                    try:
-                        user_id = await get_user_id(username)
-                        break
-                    except Exception as e:
-                        if "Too Many Requests" in str(e) and attempt < 4:
-                            backoff_time = (2 ** attempt) * 5
-                            logger.warning(f"Rate limit getting user ID. Retrying in {backoff_time} seconds...")
-                            await asyncio.sleep(backoff_time)
-                            continue
-                        raise
-                
-                if not user_id:
-                    raise Exception("Failed to get user ID after retries")
-                
-                # Get user's tweets
-                end_time = datetime.datetime.now(datetime.timezone.utc)
-                start_time = end_time - datetime.timedelta(days=7)
-                start_time_str = start_time.strftime("%Y-%m-%dT%H:%M:%SZ")
-                end_time_str = end_time.strftime("%Y-%m-%dT%H:%M:%SZ")
-                
-                all_tweets = []
-                next_token = None
-                
-                async with httpx.AsyncClient() as client:
-                    while True:
-                        url = f"https://api.twitter.com/2/users/{user_id}/tweets"
-                        params = {
-                            "max_results": 100,
-                            "tweet.fields": "created_at,public_metrics,conversation_id,attachments,entities",
-                            "expansions": "attachments.media_keys",
-                            "media.fields": "url,preview_image_url,type,height,width",
-                            "start_time": start_time_str,
-                            "end_time": end_time_str
-                        }
+        while pending_accounts:
+            for username in pending_accounts[:]:  # Create a copy to iterate
+                try:
+                    # First check if we have recent data (less than 2 hours old)
+                    with conn.cursor() as cursor:
+                        cursor.execute(
+                            """
+                            SELECT content, created_at 
+                            FROM compititers_data 
+                            WHERE user_id = %s 
+                            AND account_id = %s 
+                            AND compititers_username = %s
+                            AND created_at > NOW() - INTERVAL '2 hours'
+                            ORDER BY created_at DESC 
+                            LIMIT 1
+                            """,
+                            (request.user_id, request.account_id, username)
+                        )
+                        existing_data = cursor.fetchone()
                         
-                        if next_token:
-                            params["pagination_token"] = next_token
-                            
-                        # Use the retry mechanism for the request
-                        resp = await make_twitter_request(client, url, HEADERS, params)
-                        data = resp.json()
-                        tweets = data.get("data", [])
-                        media = {m["media_key"]: m for m in data.get("includes", {}).get("media", [])}
-                        
-                        for tweet in tweets:
-                            metrics = tweet.get("public_metrics", {})
-                            
-                            tweet_media = []
-                            if "attachments" in tweet and "media_keys" in tweet["attachments"]:
-                                for media_key in tweet["attachments"]["media_keys"]:
-                                    if media_key in media:
-                                        media_item = media[media_key]
-                                        tweet_media.append({
-                                            "type": media_item["type"],
-                                            "url": media_item.get("url"),
-                                            "preview_url": media_item.get("preview_image_url"),
-                                            "dimensions": {
-                                                "height": media_item.get("height"),
-                                                "width": media_item.get("width")
-                                            }
-                                        })
-                                        
-                            tweet_data = {
-                                "tweet_id": tweet["id"],
-                                "text": tweet["text"],
-                                "created_at": tweet["created_at"],
-                                "like_count": metrics.get("like_count", 0),
-                                "retweet_count": metrics.get("retweet_count", 0),
-                                "reply_count": metrics.get("reply_count", 0),
-                                "quote_count": metrics.get("quote_count", 0),
-                                "impression_count": metrics.get("impression_count", 0),
-                                "media": tweet_media
+                        if existing_data:
+                            # If we have recent data, use it instead of calling Twitter API
+                            if isinstance(existing_data[0], str):
+                                content = json.loads(existing_data[0])
+                            else:
+                                content = existing_data[0]
+                            results[username] = {
+                                "status": "success",
+                                "username": username,
+                                "total_tweets": content["total_tweets"],
+                                "total_likes": content["total_likes"],
+                                "total_retweets": content["total_retweets"],
+                                "total_replies": content["total_replies"],
+                                "total_impressions": content["total_impressions"],
+                                "engagement_rate": content["engagement_rate"],
+                                "saved_data_id": existing_data[1],
+                                "data_status": "cached",
+                                "cached_at": existing_data[1].isoformat()
                             }
-                            
-                            all_tweets.append(tweet_data)
-                            
-                        next_token = data.get("meta", {}).get("next_token")
-                        if not next_token:
+                            pending_accounts.remove(username)
+                            continue
+                    
+                    # If no recent data, proceed with Twitter API call
+                    user_id = None
+                    for attempt in range(5):  # Try up to 5 times
+                        try:
+                            user_id = await get_user_id(username)
                             break
-                            
-                # Calculate aggregated metrics
-                total_tweets = len(all_tweets)
-                total_likes = sum(tweet["like_count"] for tweet in all_tweets)
-                total_retweets = sum(tweet["retweet_count"] for tweet in all_tweets)
-                total_replies = sum(tweet["reply_count"] for tweet in all_tweets)
-                total_impressions = sum(tweet["impression_count"] for tweet in all_tweets)
-                engagement_rate = (total_likes + total_retweets + total_replies) / total_impressions if total_impressions > 0 else 0
-                
-                # Save all tweets for this user to compititers_data table
-                for attempt in range(5):
-                    try:
-                        with conn.cursor() as cursor:
-                            cursor.execute(
-                                """
-                                INSERT INTO compititers_data 
-                                (content, user_id, account_id, created_at)
-                                VALUES (%s, %s, %s, %s)
-                                RETURNING id
-                                """,
-                                (
-                                    json.dumps({
-                                        "username": username,
-                                        "tweets": all_tweets,
-                                        "total_tweets": total_tweets,
-                                        "total_likes": total_likes,
-                                        "total_retweets": total_retweets,
-                                        "total_replies": total_replies,
-                                        "total_impressions": total_impressions,
-                                        "engagement_rate": engagement_rate
-                                    }),
-                                    userId,
-                                    account_id,
-                                    datetime.datetime.now(datetime.timezone.utc)
+                        except Exception as e:
+                            if "Too Many Requests" in str(e):
+                                # Get reset time from response headers
+                                reset_time = int(e.response.headers.get('x-rate-limit-reset', 0))
+                                if reset_time > 0:
+                                    await wait_for_rate_limit_reset(reset_time)
+                                    continue
+                            if attempt < 4:
+                                backoff_time = (2 ** attempt) * 5
+                                logger.warning(f"Error getting user ID for {username}. Retrying in {backoff_time} seconds...")
+                                await asyncio.sleep(backoff_time)
+                                continue
+                            raise
+                    
+                    if not user_id:
+                        raise Exception("Failed to get user ID after retries")
+                    
+                    # Set time range for last 7 days
+                    end_time = datetime.datetime.now(datetime.timezone.utc)
+                    start_time = end_time - datetime.timedelta(days=2)
+                    start_time_str = start_time.strftime("%Y-%m-%dT%H:%M:%SZ")
+                    end_time_str = end_time.strftime("%Y-%m-%dT%H:%M:%SZ")
+                    
+                    all_tweets = []
+                    next_token = None
+                    
+                    async with httpx.AsyncClient() as client:
+                        while True:
+                            try:
+                                url = f"https://api.twitter.com/2/users/{user_id}/tweets"
+                                params = {
+                                    "max_results": 100,
+                                    "tweet.fields": "created_at,public_metrics,conversation_id,attachments,entities",
+                                    "expansions": "attachments.media_keys",
+                                    "media.fields": "url,preview_image_url,type,height,width",
+                                    "start_time": start_time_str,
+                                    "end_time": end_time_str
+                                }
+                                
+                                if next_token:
+                                    params["pagination_token"] = next_token
+                                
+                                resp = await client.get(url, headers=HEADERS, params=params)
+                                
+                                if resp.status_code == 429:  # Rate limit exceeded
+                                    reset_time = int(resp.headers.get('x-rate-limit-reset', 0))
+                                    if reset_time > 0:
+                                        await wait_for_rate_limit_reset(reset_time)
+                                        continue
+                                    else:
+                                        raise Exception("Rate limit exceeded but no reset time provided")
+                                
+                                if resp.status_code != 200:
+                                    raise Exception(f"Twitter API Error: {resp.text}")
+                                
+                                data = resp.json()
+                                tweets = data.get("data", [])
+                                media = {m["media_key"]: m for m in data.get("includes", {}).get("media", [])}
+                                
+                                for tweet in tweets:
+                                    metrics = tweet.get("public_metrics", {})
+                                    
+                                    tweet_media = []
+                                    if "attachments" in tweet and "media_keys" in tweet["attachments"]:
+                                        for media_key in tweet["attachments"]["media_keys"]:
+                                            if media_key in media:
+                                                media_item = media[media_key]
+                                                tweet_media.append({
+                                                    "type": media_item["type"],
+                                                    "url": media_item.get("url"),
+                                                    "preview_url": media_item.get("preview_image_url"),
+                                                    "dimensions": {
+                                                        "height": media_item.get("height"),
+                                                        "width": media_item.get("width")
+                                                    }
+                                                })
+                                                
+                                    tweet_data = {
+                                        "tweet_id": tweet["id"],
+                                        "text": tweet["text"],
+                                        "created_at": tweet["created_at"],
+                                        "like_count": metrics.get("like_count", 0),
+                                        "retweet_count": metrics.get("retweet_count", 0),
+                                        "reply_count": metrics.get("reply_count", 0),
+                                        "quote_count": metrics.get("quote_count", 0),
+                                        "impression_count": metrics.get("impression_count", 0),
+                                        "media": tweet_media
+                                    }
+                                    
+                                    all_tweets.append(tweet_data)
+                                
+                                next_token = data.get("meta", {}).get("next_token")
+                                if not next_token:
+                                    break
+                                    
+                            except Exception as e:
+                                if "Too Many Requests" in str(e):
+                                    reset_time = int(e.response.headers.get('x-rate-limit-reset', 0))
+                                    if reset_time > 0:
+                                        await wait_for_rate_limit_reset(reset_time)
+                                        continue
+                                raise
+                    
+                    # Calculate aggregated metrics
+                    total_tweets = len(all_tweets)
+                    total_likes = sum(tweet["like_count"] for tweet in all_tweets)
+                    total_retweets = sum(tweet["retweet_count"] for tweet in all_tweets)
+                    total_replies = sum(tweet["reply_count"] for tweet in all_tweets)
+                    total_impressions = sum(tweet["impression_count"] for tweet in all_tweets)
+                    engagement_rate = (total_likes + total_retweets + total_replies) / total_impressions if total_impressions > 0 else 0
+                    
+                    # Prepare data for saving
+                    account_data = {
+                        "username": username,
+                        "total_tweets": total_tweets,
+                        "total_likes": total_likes,
+                        "total_retweets": total_retweets,
+                        "total_replies": total_replies,
+                        "total_impressions": total_impressions,
+                        "engagement_rate": engagement_rate,
+                        "tweets": all_tweets,
+                        "data_status": "complete"
+                    }
+                    
+                    # Save to compititers_data table with retry
+                    for attempt in range(5):
+                        try:
+                            with conn.cursor() as cursor:
+                                cursor.execute(
+                                    """
+                                    INSERT INTO compititers_data 
+                                    (content, user_id, account_id, created_at,compititers_username)
+                                    VALUES (%s, %s, %s, %s,%s)
+                                    RETURNING id
+                                    """,
+                                    (
+                                        json.dumps(account_data),
+                                        request.user_id,
+                                        request.account_id,
+                                        datetime.datetime.now(datetime.timezone.utc),
+                                        username
+                                    )
                                 )
-                            )
-                            conn.commit()
-                        break
-                    except Exception as e:
-                        if attempt < 4:
-                            backoff_time = (2 ** attempt) * 5
-                            logger.warning(f"Database error saving user data, retrying in {backoff_time} seconds... Error: {str(e)}")
-                            await asyncio.sleep(backoff_time)
-                            continue
-                        raise
-                
-                # Save metrics to competitor_metrics table with retry
-                for attempt in range(5):
-                    try:
-                        with conn.cursor() as cursor:
-                            cursor.execute(
-                                """
-                                INSERT INTO competitor_metrics 
-                                (competitor_name, impressions, likes, retweets, replies, engagement_rate, collected_at, account_id, user_id)
-                                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
-                                RETURNING id
-                                """,
-                                (
-                                    username,
-                                    total_impressions,
-                                    total_likes,
-                                    total_retweets,
-                                    total_replies,
-                                    engagement_rate,
-                                    datetime.datetime.now(datetime.timezone.utc),
-                                    account_id,
-                                    userId
-                                )
-                            )
-                            metric_id = cursor.fetchone()[0]
-                            conn.commit()
-                        break
-                    except Exception as e:
-                        if attempt < 4:
-                            backoff_time = (2 ** attempt) * 5
-                            logger.warning(f"Database error saving metrics, retrying in {backoff_time} seconds... Error: {str(e)}")
-                            await asyncio.sleep(backoff_time)
-                            continue
-                        raise
-                
-                results.append({
-                    "account_key": account_key,
-                    "username": username,
-                    "total_tweets": total_tweets,
-                    "total_likes": total_likes,
-                    "total_retweets": total_retweets,
-                    "total_replies": total_replies,
-                    "total_impressions": total_impressions,
-                    "engagement_rate": engagement_rate,
-                    "tweets": all_tweets
-                })
-                
-            except Exception as e:
-                logger.error(f"Error processing user {username}: {str(e)}")
-                results.append({
-                    "account_key": account_key,
-                    "username": username,
-                    "error": str(e)
-                })
+                                data_id = cursor.fetchone()[0]
+                                conn.commit()
+                                break
+                        except Exception as e:
+                            if attempt < 4:
+                                backoff_time = (2 ** attempt) * 5
+                                logger.warning(f"Database error saving data for {username}, retrying in {backoff_time} seconds... Error: {str(e)}")
+                                await asyncio.sleep(backoff_time)
+                                continue
+                            raise
+                    
+                    results[username] = {
+                        "username": username,
+                        "total_tweets": total_tweets,
+                        "total_likes": total_likes,
+                        "total_retweets": total_retweets,
+                        "total_replies": total_replies,
+                        "total_impressions": total_impressions,
+                        "engagement_rate": engagement_rate,
+                        "tweets": all_tweets,
+                        "saved_data_id": data_id,
+                        "data_status": "complete"
+                    }
+                    
+                    # Remove successfully processed account from pending list
+                    pending_accounts.remove(username)
+                    
+                except Exception as e:
+                    logger.error(f"Error processing account {username}: {str(e)}")
+                    if "Too Many Requests" in str(e):
+                        # Keep the account in pending_accounts for retry
+                        continue
+                    results[username] = {"error": str(e)}
+                    pending_accounts.remove(username)
                 
         return {
-            "total_accounts_analyzed": len(request.accounts),
-            "successful_analyses": len([r for r in results if "error" not in r]),
-            "results": results
+            "status": "success",
+            "results": results,
+            "summary": {
+                "total_accounts": len(request.usernames),
+                "successful_analyses": len([r for r in results.values() if "error" not in r]),
+                "failed_analyses": len([r for r in results.values() if "error" in r])
+            }
         }
         
     except Exception as e:
-        logger.error(f"Error in analyze_multiple_users: {str(e)}", exc_info=True)
+        logger.error(f"Error in analyze_multiple_accounts: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
     finally:
         if conn:
