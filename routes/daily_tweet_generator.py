@@ -426,6 +426,27 @@ comment_analyzer_agent = Agent(
     handoffs=[]  # No handoffs for comment analyzer agent
 )
 
+async def get_previous_tweets(user_id: str, account_id: str, limit: int = 100) -> List[str]:
+    """Get previously generated tweets for a user to avoid duplicates."""
+    conn = get_connection()
+    try:
+        with conn.cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT content 
+                FROM posts 
+                WHERE user_id = %s 
+                AND account_id = %s 
+                ORDER BY created_at DESC 
+                LIMIT %s
+                """,
+                (user_id, account_id, limit)
+            )
+            previous_tweets = [row[0] for row in cursor.fetchall()]
+            return previous_tweets
+    finally:
+        conn.close()
+
 @router.post("/generate-daily-tweets", response_model=TweetsOutput)
 async def generate_tweets(request: TweetRequest):
     """Generate five high-quality tweets using the Tweet Agent."""
@@ -477,7 +498,12 @@ async def generate_tweets(request: TweetRequest):
         finally:
             conn.close()
 
+        # Get previous tweets to avoid duplicates
+        previous_tweets = await get_previous_tweets(request.user_id, request.account_id)
+        
+        # Update tweet agent instructions to include previous tweets
         tweet_agent.instructions = get_tweet_agent_instructions(character_settings[0])
+        tweet_agent.instructions += f"\n\nPlease avoid generating tweets similar to these previous tweets:\n" + "\n".join(previous_tweets)
         
         run_result = await Runner.run(tweet_agent, input="generate 5 tweets")
         result = run_result.final_output
