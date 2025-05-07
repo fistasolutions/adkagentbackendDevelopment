@@ -21,6 +21,7 @@ dependencies = [
     "tensorflow>=2.19.0",
     "openai-agents>=0.0.11",
     "pytz>=2025.2",
+    "apscheduler>=3.11.0",
 ]
 
 [tool.setuptools]
