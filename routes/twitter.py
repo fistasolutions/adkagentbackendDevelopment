@@ -907,7 +907,7 @@ async def get_user_retweets(username: str, user_id: int, account_id: int):
                 logger.info(f"Using cached retweets data from {created_at}")
                 return {
                     "status": "cached",
-                    "data": json.loads(content),
+                    "data": content,
                     "cached_at": created_at.isoformat()
                 }
 
@@ -920,11 +920,12 @@ async def get_user_retweets(username: str, user_id: int, account_id: int):
         start_time_str = start_time.strftime("%Y-%m-%dT%H:%M:%SZ")
         end_time_str = end_time.strftime("%Y-%m-%dT%H:%M:%SZ")
         
-        url = f"https://api.twitter.com/2/users/{twitter_user_id}/retweets"
+        # Use the tweets endpoint with retweet filter
+        url = f"https://api.twitter.com/2/users/{twitter_user_id}/tweets"
         params = {
             "max_results": 100,
-            "tweet.fields": "created_at,public_metrics,author_id",
-            "expansions": "author_id",
+            "tweet.fields": "created_at,public_metrics,referenced_tweets,author_id",
+            "expansions": "referenced_tweets.id,referenced_tweets.id.author_id",
             "user.fields": "username,name,profile_image_url",
             "start_time": start_time_str,
             "end_time": end_time_str
@@ -945,26 +946,35 @@ async def get_user_retweets(username: str, user_id: int, account_id: int):
                 
                 data = resp.json()
                 tweets = data.get("data", [])
+                
+                # Create maps for referenced tweets and users
+                referenced_tweets = {tweet["id"]: tweet for tweet in data.get("includes", {}).get("tweets", [])}
                 users = {user["id"]: user for user in data.get("includes", {}).get("users", [])}
                 
                 for tweet in tweets:
-                    author = users.get(tweet["author_id"])
-                    retweet_data = {
-                        "retweet_id": tweet["id"],
-                        "retweeted_at": tweet["created_at"],
-                        "original_tweet": {
-                            "id": tweet["id"],
-                            "text": tweet["text"],
-                            "created_at": tweet["created_at"],
-                            "metrics": tweet.get("public_metrics", {}),
-                            "author": {
-                                "username": author.get("username"),
-                                "name": author.get("name"),
-                                "profile_image_url": author.get("profile_image_url")
-                            } if author else None
-                        }
-                    }
-                    all_retweets.append(retweet_data)
+                    # Check if this is a retweet
+                    if "referenced_tweets" in tweet:
+                        for ref in tweet["referenced_tweets"]:
+                            if ref["type"] == "retweeted":
+                                original_tweet = referenced_tweets.get(ref["id"])
+                                if original_tweet:
+                                    original_author = users.get(original_tweet["author_id"])
+                                    retweet_data = {
+                                        "retweet_id": tweet["id"],
+                                        "retweeted_at": tweet["created_at"],
+                                        "original_tweet": {
+                                            "id": original_tweet["id"],
+                                            "text": original_tweet["text"],
+                                            "created_at": original_tweet["created_at"],
+                                            "metrics": original_tweet.get("public_metrics", {}),
+                                            "author": {
+                                                "username": original_author.get("username"),
+                                                "name": original_author.get("name"),
+                                                "profile_image_url": original_author.get("profile_image_url")
+                                            } if original_author else None
+                                        }
+                                    }
+                                    all_retweets.append(retweet_data)
                 
                 next_token = data.get("meta", {}).get("next_token")
                 if not next_token:
@@ -982,12 +992,11 @@ async def get_user_retweets(username: str, user_id: int, account_id: int):
             cursor.execute(
                 """
                 INSERT INTO retweets 
-                (retweets_id, created_at, content, account_id, user_id)
-                VALUES (%s, %s, %s, %s, %s)
-                RETURNING id
+                (created_at, content, account_id, user_id)
+                VALUES (%s, %s, %s, %s)
+                RETURNING retweets_id
                 """,
                 (
-                    all_retweets[0]["retweet_id"] if all_retweets else None,  # Using first retweet ID as reference
                     datetime.datetime.now(datetime.timezone.utc),
                     json.dumps(response_data),
                     account_id,
