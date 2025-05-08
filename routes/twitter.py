@@ -880,14 +880,39 @@ async def get_tweet_details(tweet_id: str):
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/retweets/{username}")
-async def get_user_retweets(username: str):
+async def get_user_retweets(username: str, user_id: int, account_id: int):
     """
-    Fetch only retweets made by a specific Twitter account.
-    Returns information about which tweets were retweeted by the account.
+    Fetch retweets made by a specific Twitter account.
+    Saves data to database and implements 2-hour caching.
     """
     try:
-        # First get the user ID
-        user_id = await get_user_id(username)
+        conn = get_connection()
+        with conn.cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT content, created_at 
+                FROM retweets 
+                WHERE user_id = %s 
+                AND account_id = %s 
+                AND created_at > NOW() - INTERVAL '2 hours'
+                ORDER BY created_at DESC 
+                LIMIT 1
+                """,
+                (user_id, account_id)
+            )
+            result = cursor.fetchone()
+            
+            if result:
+                content, created_at = result
+                logger.info(f"Using cached retweets data from {created_at}")
+                return {
+                    "status": "cached",
+                    "data": json.loads(content),
+                    "cached_at": created_at.isoformat()
+                }
+
+        # If no recent data, fetch from Twitter API
+        twitter_user_id = await get_user_id(username)
         
         # Set time range for last 7 days
         end_time = datetime.datetime.now(datetime.timezone.utc)
@@ -895,15 +920,14 @@ async def get_user_retweets(username: str):
         start_time_str = start_time.strftime("%Y-%m-%dT%H:%M:%SZ")
         end_time_str = end_time.strftime("%Y-%m-%dT%H:%M:%SZ")
         
-        url = f"https://api.twitter.com/2/users/{user_id}/tweets"
+        url = f"https://api.twitter.com/2/users/{twitter_user_id}/retweets"
         params = {
             "max_results": 100,
-            "tweet.fields": "created_at,referenced_tweets,public_metrics",
-            "expansions": "referenced_tweets.id,referenced_tweets.id.author_id",
+            "tweet.fields": "created_at,public_metrics,author_id",
+            "expansions": "author_id",
             "user.fields": "username,name,profile_image_url",
             "start_time": start_time_str,
-            "end_time": end_time_str,
-            "exclude": "replies"  # Only exclude replies, as retweets are handled by the referenced_tweets filter
+            "end_time": end_time_str
         }
         
         all_retweets = []
@@ -921,47 +945,68 @@ async def get_user_retweets(username: str):
                 
                 data = resp.json()
                 tweets = data.get("data", [])
-                
-                # Create maps for referenced tweets and users
-                referenced_tweets = {tweet["id"]: tweet for tweet in data.get("includes", {}).get("tweets", [])}
                 users = {user["id"]: user for user in data.get("includes", {}).get("users", [])}
                 
                 for tweet in tweets:
-                    # Only process retweets
-                    if "referenced_tweets" in tweet:
-                        for ref in tweet["referenced_tweets"]:
-                            if ref["type"] == "retweeted":
-                                original_tweet = referenced_tweets.get(ref["id"])
-                                if original_tweet:
-                                    original_author = users.get(original_tweet["author_id"])
-                                    retweet_data = {
-                                        "retweet_id": tweet["id"],
-                                        "retweeted_at": tweet["created_at"],
-                                        "original_tweet": {
-                                            "id": original_tweet["id"],
-                                            "text": original_tweet["text"],
-                                            "created_at": original_tweet["created_at"],
-                                            "metrics": original_tweet.get("public_metrics", {}),
-                                            "author": {
-                                                "username": original_author.get("username"),
-                                                "name": original_author.get("name"),
-                                                "profile_image_url": original_author.get("profile_image_url")
-                                            } if original_author else None
-                                        }
-                                    }
-                                    all_retweets.append(retweet_data)
+                    author = users.get(tweet["author_id"])
+                    retweet_data = {
+                        "retweet_id": tweet["id"],
+                        "retweeted_at": tweet["created_at"],
+                        "original_tweet": {
+                            "id": tweet["id"],
+                            "text": tweet["text"],
+                            "created_at": tweet["created_at"],
+                            "metrics": tweet.get("public_metrics", {}),
+                            "author": {
+                                "username": author.get("username"),
+                                "name": author.get("name"),
+                                "profile_image_url": author.get("profile_image_url")
+                            } if author else None
+                        }
+                    }
+                    all_retweets.append(retweet_data)
                 
                 next_token = data.get("meta", {}).get("next_token")
                 if not next_token:
                     break
         
-        return {
+        # Prepare response data
+        response_data = {
             "username": username,
             "total_retweets": len(all_retweets),
             "retweets": all_retweets
         }
         
+        # Save to database
+        with conn.cursor() as cursor:
+            cursor.execute(
+                """
+                INSERT INTO retweets 
+                (retweets_id, created_at, content, account_id, user_id)
+                VALUES (%s, %s, %s, %s, %s)
+                RETURNING id
+                """,
+                (
+                    all_retweets[0]["retweet_id"] if all_retweets else None,  # Using first retweet ID as reference
+                    datetime.datetime.now(datetime.timezone.utc),
+                    json.dumps(response_data),
+                    account_id,
+                    user_id
+                )
+            )
+            conn.commit()
+        
+        return {
+            "status": "fresh",
+            "data": response_data,
+            "cached_at": datetime.datetime.now(datetime.timezone.utc).isoformat()
+        }
+        
     except Exception as e:
         logger.error(f"Error in get_user_retweets: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        if conn:
+            conn.close()
+            logger.info("Database connection closed")
 
