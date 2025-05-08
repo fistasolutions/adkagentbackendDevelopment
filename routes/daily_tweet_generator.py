@@ -13,6 +13,7 @@ from fastapi import APIRouter, HTTPException, Depends, Response
 from db.db import get_connection
 
 load_dotenv()
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
 
 router = APIRouter()
@@ -131,9 +132,9 @@ def get_tweet_agent_instructions(
        - Target audience's timezone and activity patterns
        - Day of the week (weekdays vs weekends)
        - Current trends and peak engagement times
+       
        - IMPORTANT: Schedule times must be in the future relative to the current time ({datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")})
-       - Space out the tweets over the next 7 days
-       - Avoid scheduling tweets too close together (minimum 4 hours apart)
+       - - IMPORTANT: Schedule times according to the post settings data. The day of week mention in the post settings data is the day of the week when the tweet will be posted.
     6. Return the tweets in the following JSON format:
        {{
          "tweets": [
