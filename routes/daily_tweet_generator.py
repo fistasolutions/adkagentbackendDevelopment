@@ -81,7 +81,7 @@ def get_tweet_agent_instructions(
     character_settings: str = None,
     competitor_data: List[str] = None,
     previous_tweets: List[str] = None,
-    post_settings_data: List[str] = None,
+    post_settings_data: dict = None,
 ) -> str:
     base_instructions = f"""You are a professional tweet generation expert specializing in creating natural, human-like content with an educated perspective. Your role is to:
     1. Generate EXACTLY FIVE unique, natural-sounding tweets that read as if written by an educated professional
@@ -92,13 +92,15 @@ def get_tweet_agent_instructions(
     these are the competitor data:
     {competitor_data}
     
-    **These are the Post Schedule  Settings:
-     the days of the week on which posts will be published.
-     the time ranges for posting. Within the selected ranges, posts will be published at the optimal time based on learning data.
-      average length of generated text.**
-    
-    these are the post settings:
+    **These are the Post Schedule Settings:
     {post_settings_data}
+    
+    IMPORTANT SCHEDULING RULES:
+    1. You MUST schedule tweets ONLY on the days specified in posting_day
+    2. You MUST schedule tweets ONLY within the time ranges specified in posting_time
+    3. The posting_frequency indicates how many posts should be made per day
+    4. All scheduled times must be in the future relative to the current time ({datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")})
+    5. Distribute the tweets across the specified posting days and times
     
     you have to avoid repeating the same content as the previous tweets.
     Analyze the previous tweets and the competitor data and generate tweets that are unique and engaging.
@@ -134,7 +136,7 @@ def get_tweet_agent_instructions(
        - Current trends and peak engagement times
        
        - IMPORTANT: Schedule times must be in the future relative to the current time ({datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")})
-       - - IMPORTANT: Schedule times according to the post settings data. The day of week mention in the post settings data is the day of the week when the tweet will be posted.
+       - IMPORTANT: Schedule times according to the post settings data. The day of week mention in the post settings data is the day of the week when the tweet will be posted.
     6. Return the tweets in the following JSON format:
        {{
          "tweets": [
@@ -174,6 +176,7 @@ tweet_agent = Agent(
     name="Tweet Agent",
     instructions=get_tweet_agent_instructions(),
     output_type=TweetsOutput,
+    
 )
 
 trend_strategy_agent = Agent(
@@ -348,26 +351,35 @@ async def generate_tweets(request: TweetRequest):
                 
                 cursor.execute(
                     """
-                    SELECT *
+                    SELECT posting_day, posting_time, posting_frequency,posting_time
                     FROM persona_notify 
                     WHERE user_id = %s 
                     AND account_id = %s
                     """,
                     (request.user_id, request.account_id),
                 )
-                post_settings = cursor.fetchall()
-                post_settings_data = [
-                    f"Username: {row[0]}, Content: {row[1]}"
-                    for row in post_settings
-                    if row[0] and row[1]
-                ]
+                post_settings = cursor.fetchone()
                 
-                if not post_settings_data:
+                if not post_settings:
                     raise HTTPException(
                         status_code=400,
                         detail="Post settings data not found. Please set up your post settings before generating tweets.",
                     )
-
+                
+                # Parse the post settings
+                posting_day = post_settings[0]  # This is a JSON object
+                posting_time = post_settings[1]  # This is a JSON object
+                posting_frequency = post_settings[2]
+                posting_time = post_settings[3]
+                
+                # Format post settings data for the agent
+                post_settings_data = {
+                    "posting_day": posting_day,
+                    "posting_time": posting_time,
+                    "posting_frequency": posting_frequency,
+                    "posting_time": posting_time
+                }
+                
                 current_time = datetime.utcnow()
                 thirty_minutes_ago = current_time - timedelta(minutes=30)
 
