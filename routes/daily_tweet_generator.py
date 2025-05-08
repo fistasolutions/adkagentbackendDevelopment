@@ -77,6 +77,11 @@ class TweetUpdateRequest(BaseModel):
     scheduled_time: Optional[str] = None
 
 
+class TweetImageUpdateRequest(BaseModel):
+    tweet_id: str
+    image_url: str
+
+
 def get_tweet_agent_instructions(
     character_settings: str = None,
     competitor_data: List[str] = None,
@@ -590,3 +595,63 @@ async def update_tweet(request: TweetUpdateRequest):
     except Exception as e:
         print(f"Error updating tweet: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Failed to update tweet: {str(e)}")
+
+
+@router.put("/update-tweet-image")
+async def update_tweet_image(request: TweetImageUpdateRequest):
+    """Update the image URL of a tweet."""
+    try:
+        conn = get_connection()
+        try:
+            with conn.cursor() as cursor:
+                # First check if the tweet exists
+                cursor.execute(
+                    """
+                    SELECT id
+                    FROM posts 
+                    WHERE id = %s
+                    """,
+                    (request.tweet_id,),
+                )
+                tweet = cursor.fetchone()
+
+                if not tweet:
+                    raise HTTPException(status_code=404, detail="Tweet not found")
+
+                # Update the image URL
+                cursor.execute(
+                    """
+                    UPDATE posts 
+                    SET "Image_url" = %s
+                    WHERE id = %s
+                    RETURNING id, "Image_url"
+                    """,
+                    (request.image_url, request.tweet_id),
+                )
+                updated_tweet = cursor.fetchone()
+
+                conn.commit()
+
+                return {
+                    "message": "Tweet image updated successfully",
+                    "tweet": {
+                        "id": updated_tweet[0],
+                        "image_url": updated_tweet[1],
+                    },
+                }
+
+        except HTTPException as he:
+            raise he
+        except Exception as db_error:
+            print(f"Database error: {str(db_error)}")
+            raise HTTPException(
+                status_code=500, detail=f"Failed to update tweet image: {str(db_error)}"
+            )
+        finally:
+            conn.close()
+
+    except HTTPException as he:
+        raise he
+    except Exception as e:
+        print(f"Error updating tweet image: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to update tweet image: {str(e)}")
