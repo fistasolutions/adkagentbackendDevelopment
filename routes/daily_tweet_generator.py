@@ -9,12 +9,15 @@ from fastapi import FastAPI, Request, HTTPException, Depends
 from fastapi.responses import JSONResponse
 import random
 import logging
-from fastapi import APIRouter, HTTPException, Depends,Response
+from fastapi import APIRouter, HTTPException, Depends, Response
 from db.db import get_connection
+
 load_dotenv()
 
 
 router = APIRouter()
+
+
 class TweetOutput(BaseModel):
     tweet: str
     hashtags: List[str]
@@ -23,11 +26,13 @@ class TweetOutput(BaseModel):
     engagement_potential: float
     scheduled_time: str
 
+
 class TweetsOutput(BaseModel):
     tweets: List[TweetOutput]
     total_impact_score: float
     average_reach_estimate: float
     overall_engagement_potential: float
+
 
 class AnalysisOutput(BaseModel):
     insights: List[str]
@@ -35,40 +40,48 @@ class AnalysisOutput(BaseModel):
     patterns: Dict[str, Any]
     metrics: Dict[str, float]
 
+
 class SentimentAnalysisOutput(BaseModel):
     sentiment_score: float
     confidence: float
 
+
 class ContentSafetyOutput(BaseModel):
     is_safe: bool
     risk_level: str
+
 
 class CharacterConsistencyOutput(BaseModel):
     consistency_score: float
     areas_of_improvement: List[str]
     strengths: List[str]
 
+
 class SpeechPatternsOutput(BaseModel):
     speech_style: str
     common_phrases: List[str]
     tone_markers: List[str]
 
-    model_config = {
-        "json_schema_extra": {
-            "additionalProperties": False
-        }
-    }
+    model_config = {"json_schema_extra": {"additionalProperties": False}}
+
 
 class TweetRequest(BaseModel):
     user_id: str
     account_id: str
+
 
 class TweetUpdateRequest(BaseModel):
     tweet_id: str
     content: Optional[str] = None
     scheduled_time: Optional[str] = None
 
-def get_tweet_agent_instructions(character_settings: str = None, competitor_data: List[str] = None, previous_tweets: List[str] = None) -> str:
+
+def get_tweet_agent_instructions(
+    character_settings: str = None,
+    competitor_data: List[str] = None,
+    previous_tweets: List[str] = None,
+    post_settings_data: List[str] = None,
+) -> str:
     base_instructions = f"""You are a professional tweet generation expert specializing in creating natural, human-like content with an educated perspective. Your role is to:
     1. Generate EXACTLY FIVE unique, natural-sounding tweets that read as if written by an educated professional
     **
@@ -77,6 +90,14 @@ def get_tweet_agent_instructions(character_settings: str = None, competitor_data
     {previous_tweets}
     these are the competitor data:
     {competitor_data}
+    
+    **These are the Post Schedule  Settings:
+     the days of the week on which posts will be published.
+     the time ranges for posting. Within the selected ranges, posts will be published at the optimal time based on learning data.
+      average length of generated text.**
+    
+    these are the post settings:
+    {post_settings_data}
     
     you have to avoid repeating the same content as the previous tweets.
     Analyze the previous tweets and the competitor data and generate tweets that are unique and engaging.
@@ -131,9 +152,9 @@ def get_tweet_agent_instructions(character_settings: str = None, competitor_data
          "overall_engagement_potential": 0.12
        }}
        """
-    
+
     full_instructions = base_instructions
-    
+
     if character_settings:
         full_instructions += f"""
 
@@ -144,8 +165,9 @@ def get_tweet_agent_instructions(character_settings: str = None, competitor_data
     - Ensure all scheduled times are in the future relative to the current time ({datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")})
 
     Your tweets should reflect this character's personality, tone, and style while maintaining professional standards."""
-    
+
     return full_instructions
+
 
 tweet_agent = Agent(
     name="Tweet Agent",
@@ -160,7 +182,7 @@ trend_strategy_agent = Agent(
     2. Identify relevant hashtags and topics
     3. Provide strategic advice to the Tweet Agent for engagement
     4. Consider cultural and business context""",
-    handoffs=["Tweet Agent"]
+    handoffs=["Tweet Agent"],
 )
 
 risk_analyzer_agent = Agent(
@@ -170,7 +192,7 @@ risk_analyzer_agent = Agent(
     2. Score risks on a scale of 0-100
     3. Identify specific risk factors
     4. Provide risk mitigation suggestions to the Tweet Agent""",
-    handoffs=["Tweet Agent"]
+    handoffs=["Tweet Agent"],
 )
 
 impact_analyzer_agent = Agent(
@@ -180,7 +202,7 @@ impact_analyzer_agent = Agent(
     2. Compare against historical averages
     3. Identify engagement patterns
     4. Generate improvement recommendations for the Tweet Agent""",
-    handoffs=["Tweet Agent"]
+    handoffs=["Tweet Agent"],
 )
 
 persona_agent = Agent(
@@ -213,8 +235,7 @@ persona_agent = Agent(
     - Consider cultural and contextual implications
     - Generate practical content recommendations
     - Define clear tone and style guidelines""",
-
-    handoffs=["Tweet Agent"]
+    handoffs=["Tweet Agent"],
 )
 
 learning_agent = Agent(
@@ -224,7 +245,7 @@ learning_agent = Agent(
     2. Identify patterns and trends in the data
     3. Provide actionable recommendations based on the analysis
     4. Maintain context of previous learning for continuous improvement""",
-    handoffs=[]  # No handoffs for learning agent
+    handoffs=[],  # No handoffs for learning agent
 )
 
 triage_agent = Agent(
@@ -235,7 +256,7 @@ triage_agent = Agent(
     2. Persona Agent - for persona analysis and management
     3. Tweet Agent - for content generation
     Provide clear reasoning for your routing decision.""",
-    handoffs=[]  # No handoffs for triage agent
+    handoffs=[],  # No handoffs for triage agent
 )
 
 comment_analyzer_agent = Agent(
@@ -246,10 +267,13 @@ comment_analyzer_agent = Agent(
     3. Provide a one-line summary (max 100 characters) for each tweet's comment analysis
     4. Use sentiment analysis to gauge overall reception""",
     output_type=List[Dict[str, str]],
-    handoffs=[]  # No handoffs for comment analyzer agent
+    handoffs=[],  # No handoffs for comment analyzer agent
 )
 
-async def get_previous_tweets(user_id: str, account_id: str, limit: int = 100) -> List[str]:
+
+async def get_previous_tweets(
+    user_id: str, account_id: str, limit: int = 100
+) -> List[str]:
     """Get previously generated tweets for a user to avoid duplicates."""
     conn = get_connection()
     try:
@@ -263,12 +287,13 @@ async def get_previous_tweets(user_id: str, account_id: str, limit: int = 100) -
                 ORDER BY created_at DESC 
                 LIMIT %s
                 """,
-                (user_id, account_id, limit)
+                (user_id, account_id, limit),
             )
             previous_tweets = [row[0] for row in cursor.fetchall()]
             return previous_tweets
     finally:
         conn.close()
+
 
 @router.post("/generate-daily-tweets", response_model=TweetsOutput)
 async def generate_tweets(request: TweetRequest):
@@ -287,36 +312,64 @@ async def generate_tweets(request: TweetRequest):
                     WHERE user_id = %s 
                     AND account_id = %s
                     """,
-                    (request.user_id, request.account_id)
+                    (request.user_id, request.account_id),
                 )
                 character_settings = cursor.fetchone()
-                
+
                 if not character_settings:
                     raise HTTPException(
                         status_code=400,
-                        detail="Character settings not found. Please set up your character settings before generating tweets."
+                        detail="Character settings not found. Please set up your character settings before generating tweets.",
                     )
-                
-                # Get ALL competitor usernames and their content for today
+
                 cursor.execute(
                     """
                     SELECT compititers_username, content
                     FROM compititers_data 
                     WHERE user_id = %s 
                     AND account_id = %s
-                    AND created_at::date = CURRENT_DATE
                     """,
-                    (request.user_id, request.account_id)
+                    (request.user_id, request.account_id),
                 )
                 competitor_rows = cursor.fetchall()
                 competitor_data = [
-                    f"Username: {row[0]}, Content: {row[1]}" for row in competitor_rows if row[0] and row[1]
+                    f"Username: {row[0]}, Content: {row[1]}"
+                    for row in competitor_rows
+                    if row[0] and row[1]
                 ]
                 
-                # Then check for recent tweets
+                #
+                if not competitor_data:
+                    raise HTTPException(
+                        status_code=400,
+                        detail="Competitor data not found. Please set up your competitor data before generating tweets.",
+                    )
+                
+                cursor.execute(
+                    """
+                    SELECT *
+                    FROM persona_notify 
+                    WHERE user_id = %s 
+                    AND account_id = %s
+                    """,
+                    (request.user_id, request.account_id),
+                )
+                post_settings = cursor.fetchall()
+                post_settings_data = [
+                    f"Username: {row[0]}, Content: {row[1]}"
+                    for row in post_settings
+                    if row[0] and row[1]
+                ]
+                
+                if not post_settings_data:
+                    raise HTTPException(
+                        status_code=400,
+                        detail="Post settings data not found. Please set up your post settings before generating tweets.",
+                    )
+
                 current_time = datetime.utcnow()
                 thirty_minutes_ago = current_time - timedelta(minutes=30)
-                
+
                 cursor.execute(
                     """
                     SELECT COUNT(*) 
@@ -325,40 +378,42 @@ async def generate_tweets(request: TweetRequest):
                     AND account_id = %s 
                     AND created_at > %s
                     """,
-                    (request.user_id, request.account_id, thirty_minutes_ago)
+                    (request.user_id, request.account_id, thirty_minutes_ago),
                 )
                 recent_tweets_count = cursor.fetchone()[0]
-                
+
                 if recent_tweets_count > 0:
                     raise HTTPException(
                         status_code=429,  # Too Many Requests
-                        detail="You have already generated tweets in the last 30 minutes. Please wait before generating new tweets."
+                        detail="You have already generated tweets in the last 30 minutes. Please wait before generating new tweets.",
                     )
         finally:
             conn.close()
 
-        # Get previous tweets to avoid duplicates
         previous_tweets = await get_previous_tweets(request.user_id, request.account_id)
-        
-        # Update tweet agent instructions to include previous tweets and competitor data
-        tweet_agent.instructions = get_tweet_agent_instructions(character_settings[0], competitor_data, previous_tweets)
-        
+
+        tweet_agent.instructions = get_tweet_agent_instructions(
+            character_settings[0], competitor_data, previous_tweets, post_settings_data
+        )
+
         run_result = await Runner.run(tweet_agent, input="generate 5 tweets")
         result = run_result.final_output
-        
+
         if not isinstance(result, TweetsOutput):
             print(f"Unexpected response type: {type(result)}")
             print(f"Response content: {result}")
-            raise HTTPException(status_code=500, detail="Unexpected response format from Tweet Agent")
+            raise HTTPException(
+                status_code=500, detail="Unexpected response format from Tweet Agent"
+            )
         if len(result.tweets) != 5:
             raise HTTPException(status_code=500, detail="Expected exactly five tweets")
-        
+
         # Save tweets to database
         conn = get_connection()
         try:
             with conn.cursor() as cursor:
                 current_time = datetime.utcnow()
-                
+
                 # Save each tweet as a separate row
                 saved_posts = []
                 for tweet in result.tweets:
@@ -368,32 +423,47 @@ async def generate_tweets(request: TweetRequest):
                         VALUES (%s, %s, %s, %s, %s, %s)
                         RETURNING id, content, created_at, status, scheduled_time
                         """,
-                        (tweet.tweet, current_time, request.user_id, request.account_id, 'unposted', tweet.scheduled_time)
+                        (
+                            tweet.tweet,
+                            current_time,
+                            request.user_id,
+                            request.account_id,
+                            "unposted",
+                            tweet.scheduled_time,
+                        ),
                     )
                     post_data = cursor.fetchone()
-                    saved_posts.append({
-                        "id": post_data[0],
-                        "content": post_data[1],
-                        "created_at": post_data[2],
-                        "status": post_data[3],
-                        "scheduled_time": post_data[4]
-                    })
-                
+                    saved_posts.append(
+                        {
+                            "id": post_data[0],
+                            "content": post_data[1],
+                            "created_at": post_data[2],
+                            "status": post_data[3],
+                            "scheduled_time": post_data[4],
+                        }
+                    )
+
                 conn.commit()
-                
+
         except Exception as db_error:
             print(f"Database error: {str(db_error)}")
-            raise HTTPException(status_code=500, detail=f"Failed to save tweets to database: {str(db_error)}")
+            raise HTTPException(
+                status_code=500,
+                detail=f"Failed to save tweets to database: {str(db_error)}",
+            )
         finally:
             conn.close()
-        
+
         print("Tweets generated and saved successfully")
         return result
     except HTTPException as he:
         raise he
     except Exception as e:
         print(f"Error generating tweets: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Failed to generate tweets: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail=f"Failed to generate tweets: {str(e)}"
+        )
+
 
 @router.post("/analyze-comments", response_model=List[Dict[str, str]])
 async def analyze_comments(tweet_ids: List[str]):
@@ -401,17 +471,24 @@ async def analyze_comments(tweet_ids: List[str]):
     print(f"Analyzing comments for tweets: {tweet_ids}")
     if len(tweet_ids) != 5:
         print("Exactly five tweet IDs must be provided")
-        raise HTTPException(status_code=400, detail="Exactly five tweet IDs must be provided")
+        raise HTTPException(
+            status_code=400, detail="Exactly five tweet IDs must be provided"
+        )
     try:
         result = Runner.run(comment_analyzer_agent, input={"tweet_ids": tweet_ids})
         if len(result) != 5:
             print("Comment Analyzer Agent did not return analysis for five tweets")
-            raise HTTPException(status_code=500, detail="Expected analysis for five tweets")
+            raise HTTPException(
+                status_code=500, detail="Expected analysis for five tweets"
+            )
         print("Comments analyzed successfully")
         return result
     except Exception as e:
         print(f"Error analyzing comments: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Failed to analyze comments: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail=f"Failed to analyze comments: {str(e)}"
+        )
+
 
 @router.put("/update-tweet")
 async def update_tweet(request: TweetUpdateRequest):
@@ -420,7 +497,7 @@ async def update_tweet(request: TweetUpdateRequest):
         if not request.content and not request.scheduled_time:
             raise HTTPException(
                 status_code=400,
-                detail="At least one of content or scheduled_time must be provided"
+                detail="At least one of content or scheduled_time must be provided",
             )
 
         conn = get_connection()
@@ -433,24 +510,21 @@ async def update_tweet(request: TweetUpdateRequest):
                     FROM posts 
                     WHERE id = %s
                     """,
-                    (request.tweet_id,)
+                    (request.tweet_id,),
                 )
                 tweet = cursor.fetchone()
-                
+
                 if not tweet:
-                    raise HTTPException(
-                        status_code=404,
-                        detail="Tweet not found"
-                    )
+                    raise HTTPException(status_code=404, detail="Tweet not found")
 
                 # Prepare the update query based on provided fields
                 update_fields = []
                 update_values = []
-                
+
                 if request.content:
                     update_fields.append("content = %s")
                     update_values.append(request.content)
-                
+
                 if request.scheduled_time:
                     try:
                         # Validate the scheduled time format
@@ -460,7 +534,7 @@ async def update_tweet(request: TweetUpdateRequest):
                     except ValueError:
                         raise HTTPException(
                             status_code=400,
-                            detail="Invalid scheduled_time format. Use ISO format: YYYY-MM-DDTHH:MM:SSZ"
+                            detail="Invalid scheduled_time format. Use ISO format: YYYY-MM-DDTHH:MM:SSZ",
                         )
 
                 # Add tweet_id to the values list
@@ -473,33 +547,33 @@ async def update_tweet(request: TweetUpdateRequest):
                     WHERE id = %s
                     RETURNING id, content, scheduled_time
                 """
-                
+
                 cursor.execute(update_query, update_values)
                 updated_tweet = cursor.fetchone()
-                
+
                 conn.commit()
-                
+
                 return {
                     "message": "Tweet updated successfully",
                     "tweet": {
                         "id": updated_tweet[0],
                         "content": updated_tweet[1],
-                        "scheduled_time": updated_tweet[2]
-                    }
+                        "scheduled_time": updated_tweet[2],
+                    },
                 }
-                
+
         except HTTPException as he:
             raise he
         except Exception as db_error:
             print(f"Database error: {str(db_error)}")
-            raise HTTPException(status_code=500, detail=f"Failed to update tweet: {str(db_error)}")
+            raise HTTPException(
+                status_code=500, detail=f"Failed to update tweet: {str(db_error)}"
+            )
         finally:
             conn.close()
-            
+
     except HTTPException as he:
         raise he
     except Exception as e:
         print(f"Error updating tweet: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Failed to update tweet: {str(e)}")
-
-
