@@ -483,6 +483,163 @@ async def generate_tweets(request: TweetRequest):
         raise HTTPException(
             status_code=500, detail=f"Failed to generate tweets: {str(e)}"
         )
+@router.post("/generate-bulk-tweets", response_model=TweetsOutput)
+async def generate_tweets(request: TweetRequest):
+    """Generate five high-quality tweets using the Tweet Agent."""
+    print("Generating tweets...")
+    try:
+        # First check for character settings and get competitor data
+        conn = get_connection()
+        try:
+            with conn.cursor() as cursor:
+                # Check for character settings
+                cursor.execute(
+                    """
+                    SELECT character_settings 
+                    FROM personas 
+                    WHERE user_id = %s 
+                    AND account_id = %s
+                    """,
+                    (request.user_id, request.account_id),
+                )
+                character_settings = cursor.fetchone()
+
+                if not character_settings:
+                    raise HTTPException(
+                        status_code=400,
+                        detail="Character settings not found. Please set up your character settings before generating tweets.",
+                    )
+
+                cursor.execute(
+                    """
+                    SELECT compititers_username, content
+                    FROM compititers_data 
+                    WHERE user_id = %s 
+                    AND account_id = %s
+                    """,
+                    (request.user_id, request.account_id),
+                )
+                competitor_rows = cursor.fetchall()
+                competitor_data = [
+                    f"Username: {row[0]}, Content: {row[1]}"
+                    for row in competitor_rows
+                    if row[0] and row[1]
+                ]
+                
+                #
+                if not competitor_data:
+                    raise HTTPException(
+                        status_code=400,
+                        detail="Competitor data not found. Please set up your competitor data before generating tweets.",
+                    )
+                
+                cursor.execute(
+                    """
+                    SELECT posting_day, posting_time, posting_frequency,posting_time
+                    FROM persona_notify 
+                    WHERE user_id = %s 
+                    AND account_id = %s
+                    """,
+                    (request.user_id, request.account_id),
+                )
+                post_settings = cursor.fetchone()
+                
+                if not post_settings:
+                    raise HTTPException(
+                        status_code=400,
+                        detail="Post settings data not found. Please set up your post settings before generating tweets.",
+                    )
+                
+                # Parse the post settings
+                posting_day = post_settings[0]  # This is a JSON object
+                posting_time = post_settings[1]  # This is a JSON object
+                posting_frequency = post_settings[2]
+                posting_time = post_settings[3]
+                
+                # Format post settings data for the agent
+                post_settings_data = {
+                    "posting_day": posting_day,
+                    "posting_time": posting_time,
+                    "posting_frequency": posting_frequency,
+                    "posting_time": posting_time
+                }
+                
+        finally:
+            conn.close()
+
+        previous_tweets = await get_previous_tweets(request.user_id, request.account_id)
+
+        tweet_agent.instructions = get_tweet_agent_instructions(
+            character_settings[0], competitor_data, previous_tweets, post_settings_data
+        )
+
+        run_result = await Runner.run(tweet_agent, input="generate 5 tweets")
+        result = run_result.final_output
+
+        if not isinstance(result, TweetsOutput):
+            print(f"Unexpected response type: {type(result)}")
+            print(f"Response content: {result}")
+            raise HTTPException(
+                status_code=500, detail="Unexpected response format from Tweet Agent"
+            )
+        if len(result.tweets) != 5:
+            raise HTTPException(status_code=500, detail="Expected exactly five tweets")
+
+        # Save tweets to database
+        conn = get_connection()
+        try:
+            with conn.cursor() as cursor:
+                current_time = datetime.utcnow()
+
+                # Save each tweet as a separate row
+                saved_posts = []
+                for tweet in result.tweets:
+                    cursor.execute(
+                        """
+                        INSERT INTO posts (content, created_at, user_id, account_id, status, scheduled_time)
+                        VALUES (%s, %s, %s, %s, %s, %s)
+                        RETURNING id, content, created_at, status, scheduled_time
+                        """,
+                        (
+                            tweet.tweet,
+                            current_time,
+                            request.user_id,
+                            request.account_id,
+                            "unposted",
+                            tweet.scheduled_time,
+                        ),
+                    )
+                    post_data = cursor.fetchone()
+                    saved_posts.append(
+                        {
+                            "id": post_data[0],
+                            "content": post_data[1],
+                            "created_at": post_data[2],
+                            "status": post_data[3],
+                            "scheduled_time": post_data[4],
+                        }
+                    )
+
+                conn.commit()
+
+        except Exception as db_error:
+            print(f"Database error: {str(db_error)}")
+            raise HTTPException(
+                status_code=500,
+                detail=f"Failed to save tweets to database: {str(db_error)}",
+            )
+        finally:
+            conn.close()
+
+        print("Tweets generated and saved successfully")
+        return result
+    except HTTPException as he:
+        raise he
+    except Exception as e:
+        print(f"Error generating tweets: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail=f"Failed to generate tweets: {str(e)}"
+        )
 
 
 @router.post("/analyze-comments", response_model=List[Dict[str, str]])
