@@ -31,6 +31,9 @@ class NotifySettingUpdate(BaseModel):
     target_hashtag: Optional[str] = None
     account_id: Optional[int] = None
 
+class PostModeUpdate(BaseModel):
+    post_mode: bool
+
 class NotifySettingResponse(BaseModel):
     notify_id: int
     posting_day: Dict[str, Any]
@@ -344,3 +347,59 @@ async def delete_notify_setting(notify_id: int):
         raise HTTPException(status_code=500, detail=str(e))
     finally:
         conn.close()
+
+@router.put("/notify-settings/user/{user_id}/post-mode/{account_id}", response_model=List[NotifySettingResponse])
+async def update_user_post_mode(user_id: int, account_id: int, post_mode_update: PostModeUpdate):
+    try:
+        conn = get_connection()
+        with conn.cursor() as cursor:
+            # Check if user exists
+            cursor.execute("SELECT user_id FROM users WHERE user_id = %s", (user_id,))
+            if not cursor.fetchone():
+                raise HTTPException(status_code=404, detail="User not found")
+            
+            # Update post_mode for all notification settings of the user
+            cursor.execute(
+                """UPDATE persona_notify 
+                SET post_mode = %s
+                WHERE user_id = %s
+                AND account_id = %s
+                AND notify_type = 'post'
+                RETURNING notify_id, posting_day, posting_time, sentence_length, 
+                notify_type, template_use, target_hashtag, user_id, account_id, created_at,
+                posting_frequency, pre_create, post_mode, template_text""",
+                (post_mode_update.post_mode, user_id, account_id)
+            )
+            
+            updated_settings = cursor.fetchall()
+            conn.commit()
+            
+            if not updated_settings:
+                return []
+            
+            return [
+                {
+                    "notify_id": setting[0],
+                    "posting_day": setting[1],
+                    "posting_time": setting[2],
+                    "sentence_length": setting[3],
+                    "notify_type": setting[4],
+                    "template_use": setting[5],
+                    "target_hashtag": setting[6],
+                    "user_id": setting[7],
+                    "account_id": setting[8],
+                    "created_at": setting[9],
+                    "posting_frequency": setting[10],
+                    "pre_create": setting[11],
+                    "post_mode": setting[12],
+                    "template": setting[13]
+                }
+                for setting in updated_settings
+            ]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        conn.close()
+
+
+

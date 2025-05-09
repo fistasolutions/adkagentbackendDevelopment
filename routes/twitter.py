@@ -1,3 +1,4 @@
+import os
 from typing import List
 from fastapi import APIRouter, HTTPException
 import httpx
@@ -6,6 +7,8 @@ import datetime
 import json
 import logging
 import asyncio
+from requests_oauthlib import OAuth1Session
+from urllib.parse import urlencode
 
 from pydantic import BaseModel
 from db.db import get_connection
@@ -1018,4 +1021,3 @@ async def get_user_retweets(username: str, user_id: int, account_id: int):
         if conn:
             conn.close()
             logger.info("Database connection closed")
-
