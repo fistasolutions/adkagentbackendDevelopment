@@ -99,6 +99,21 @@ def process_tweets(tweets_to_process):
                 })
                 break
     return posted_count, failed_tweets
+def is_auto_post_enabled(user_id, account_id):
+    conn = get_connection()
+    try:
+        with conn.cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT post_mode FROM persona_notify
+                WHERE user_id = %s AND account_id = %s AND notify_type = 'post'
+                """,
+                (user_id, account_id)
+            )
+            result = cursor.fetchone()
+            return result and result[0]  # True/False or None
+    finally:
+        conn.close()
 @router.post("/post_tweets")
 async def post_tweets(request: PostTweetsRequest):
     try:
@@ -164,11 +179,18 @@ def process_due_scheduled_tweets():
                     (now, now - timedelta(minutes=SCHEDULE_CHECK_INTERVAL))
                 )
                 scheduled_tweets = cursor.fetchall()
-                if scheduled_tweets:
-                    posted_count, failed_tweets = process_tweets(scheduled_tweets)
+                tweets_to_post = []
+                for row in scheduled_tweets:
+                    tweet_id, content, user_id, account_id, scheduled_time = row
+                    if is_auto_post_enabled(user_id, account_id):
+                        tweets_to_post.append(row)
+                    else:
+                        print(f"[CRON] Auto post is disabled for user_id={user_id}, account_id={account_id}. Skipping tweet {tweet_id}.")
+                if tweets_to_post:
+                    posted_count, failed_tweets = process_tweets(tweets_to_post)
                     print(f"[CRON] Posted {posted_count} scheduled tweets. {len(failed_tweets)} failed.")
                 else:
-                    print("[CRON] No scheduled tweets to process.")
+                    print("[CRON] No scheduled tweets to process (auto post disabled for all).")
                     cursor.execute(
                         """
                         SELECT p.id, p.content, p.scheduled_time, p.status
