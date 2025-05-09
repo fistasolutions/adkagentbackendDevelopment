@@ -80,6 +80,8 @@ class TweetUpdateRequest(BaseModel):
 class TweetImageUpdateRequest(BaseModel):
     tweet_id: str
     image_url: str
+class DeleteTweetRequest(BaseModel):
+    tweet_id: str
 
 
 def get_tweet_agent_instructions(
@@ -655,3 +657,59 @@ async def update_tweet_image(request: TweetImageUpdateRequest):
     except Exception as e:
         print(f"Error updating tweet image: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Failed to update tweet image: {str(e)}")
+    
+    
+@router.delete("/delete-tweet")
+async def delete_tweet(request: DeleteTweetRequest):
+    """Delete a tweet by its ID."""
+    try:
+        conn = get_connection()
+        try:
+            with conn.cursor() as cursor:
+                # First check if the tweet exists
+                cursor.execute(
+                    """
+                    SELECT id
+                    FROM posts 
+                    WHERE id = %s
+                    """,
+                    (request.tweet_id,),
+                )
+                tweet = cursor.fetchone()
+
+                if not tweet:
+                    raise HTTPException(status_code=404, detail="Tweet not found")
+
+                # Delete the tweet
+                cursor.execute(
+                    """
+                    DELETE FROM posts 
+                    WHERE id = %s
+                    RETURNING id
+                    """,
+                    (request.tweet_id,),
+                )
+                deleted_tweet = cursor.fetchone()
+
+                conn.commit()
+
+                return {
+                    "message": "Tweet deleted successfully",
+                    "tweet_id": deleted_tweet[0]
+                }
+
+        except HTTPException as he:
+            raise he
+        except Exception as db_error:
+            print(f"Database error: {str(db_error)}")
+            raise HTTPException(
+                status_code=500, detail=f"Failed to delete tweet: {str(db_error)}"
+            )
+        finally:
+            conn.close()
+
+    except HTTPException as he:
+        raise he
+    except Exception as e:
+        print(f"Error deleting tweet: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to delete tweet: {str(e)}")
