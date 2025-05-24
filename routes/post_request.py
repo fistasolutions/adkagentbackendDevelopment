@@ -31,6 +31,28 @@ posting_request_agent = Agent(
     Your job is to understand the user's special instructions (such as themes, events, or temporary preferences) and respond in a natural, conversational way, confirming the request and asking any clarifying questions if needed. 
     Do not make permanent changes—these are for one-time or short-term use only. 
     Always be polite, clear, and helpful, and keep the conversation focused on the user's temporary needs for post generation.
+    You talk is about the user's temporary requests related to the post content.
+    You have to ask ask what type of post you want to create and if user mention it then you have to ask when did these post i have to add it then you have to ask for the end date of the post.
+
+    If user mention the end date then you have to ask for the end date of the post.
+    and canclode the converstasion
+    Example:
+    System:
+    Do you have any temporary requests related to the post content?
+
+User:
+Since Valentine's Day is coming soon, please add more Valentine's-related content.
+
+System:
+Understood. Until when should we keep adding Valentine's posts?
+
+User:
+By 14th
+
+System:
+Understood. If you could save it, we will keep this setting until the 14th.
+
+
     
     """,
     output_type=str
@@ -106,13 +128,30 @@ class PostingKeepRequest(BaseModel):
     chat_list: List[str]
     main_point: str
 
+# Create a specialized agent for conversation summarization
+summary_agent = Agent(
+    name="Conversation Summary Agent",
+    instructions="""
+    You are an expert at summarizing conversations concisely.
+    Your task is to analyze the conversation history and create a brief summary in 20 words or less.
+    Focus on the main topic, key points, and any specific requests or preferences mentioned.
+    Return only the summary text, nothing else.
+    """,
+    output_type=str
+)
+
 @router.post("/temporary-posting-request/keep", response_model=PostingRequestResponse)
 async def temporary_posting_keep(request: PostingKeepRequest):
     """
-    Save the chat history and main point to posts_requests table when the user clicks 'keep'.
+    Generate a summary of the conversation, then save the chat history and summary to posts_requests table.
     """
-    conn = get_connection()
     try:
+        # Generate summary using the summary agent
+        agent_input = f"Conversation history: {request.chat_list}"
+        summary_result = await Runner.run(summary_agent, input=agent_input)
+        summary = summary_result.final_output if hasattr(summary_result, 'final_output') else str(summary_result)
+        
+        conn = get_connection()
         with conn.cursor() as cursor:
             cursor.execute(
                 """
@@ -120,7 +159,7 @@ async def temporary_posting_keep(request: PostingKeepRequest):
                 VALUES (%s, %s, %s, %s, %s)
                 RETURNING request_id, created_at
                 """,
-                (datetime.utcnow(), request.account_id, request.user_id, json.dumps(request.chat_list), request.main_point)
+                (datetime.utcnow(), request.account_id, request.user_id, json.dumps(request.chat_list), summary)
             )
             row = cursor.fetchone()
             conn.commit()
@@ -130,12 +169,13 @@ async def temporary_posting_keep(request: PostingKeepRequest):
                 account_id=request.account_id,
                 user_id=request.user_id,
                 chat_list=request.chat_list,
-                main_point=request.main_point
+                main_point=summary
             )
     except Exception as db_error:
         raise HTTPException(status_code=500, detail=f"DB error: {str(db_error)}")
     finally:
-        conn.close()
+        if 'conn' in locals():
+            conn.close()
 
 @router.get("/temporary-posting-requests", response_model=List[PostingRequestResponse])
 async def get_temporary_posting_requests(account_id: int = Query(...), user_id: int = Query(...)):
