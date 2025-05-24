@@ -22,7 +22,7 @@ router = APIRouter()
 class TweetOutput(BaseModel):
     tweet: str
     hashtags: List[str]
-    impact_score: float
+    risk_score: float
     reach_estimate: int
     engagement_potential: float
     scheduled_time: str
@@ -30,7 +30,7 @@ class TweetOutput(BaseModel):
 
 class TweetsOutput(BaseModel):
     tweets: List[TweetOutput]
-    total_impact_score: float
+    total_risk_score: float
     average_reach_estimate: float
     overall_engagement_potential: float
 
@@ -141,6 +141,13 @@ def get_tweet_agent_instructions(
        - Target audience's timezone and activity patterns
        - Day of the week (weekdays vs weekends)
        - Current trends and peak engagement times
+    6. Risk score should be a number between 0 and 100.
+    If the risk is "Low":
+No content matching the following categories was detected in the text:
+Political Content / Religious Content / Gender and Sexual Orientation / Race and Ethnicity / Disasters, Incidents, and Accidents / Privacy and Personal Information / Animal Welfare and Environmental Issues / Medical and Health Topics / Labor and Economic Issues / Copyright and Intellectual Property
+If the risk is "High":
+Content matching the following category(ies) was detected in the text:
+[List of detected categories]
        
        - IMPORTANT: Schedule times must be in the future relative to the current time ({datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")})
        - IMPORTANT: Schedule times according to the post settings data. The day of week mention in the post settings data is the day of the week when the tweet will be posted.
@@ -150,14 +157,14 @@ def get_tweet_agent_instructions(
            {{
              "tweet": "tweet text here",
              "hashtags": ["hashtag1", "hashtag2"],
-             "impact_score": 85.5,
+             "risk_score": 15.5,
              "reach_estimate": 5000,
              "engagement_potential": 0.12,
              "scheduled_time": "2024-03-21T10:00:00Z"  // Must be a future date/time
            }},
            ... (4 more tweets)
          ],
-         "total_impact_score": 427.5,
+         "total_risk_score": 77.5,
          "average_reach_estimate": 5000,
          "overall_engagement_potential": 0.12
        }}
@@ -439,9 +446,9 @@ async def generate_tweets(request: TweetRequest):
                 for tweet in result.tweets:
                     cursor.execute(
                         """
-                        INSERT INTO posts (content, created_at, user_id, account_id, status, scheduled_time)
-                        VALUES (%s, %s, %s, %s, %s, %s)
-                        RETURNING id, content, created_at, status, scheduled_time
+                        INSERT INTO posts (content, created_at, user_id, account_id, status, scheduled_time,risk_score)
+                        VALUES (%s, %s, %s, %s, %s, %s,%s)
+                        RETURNING id, content, created_at, status, scheduled_time,risk_score
                         """,
                         (
                             tweet.tweet,
@@ -450,6 +457,7 @@ async def generate_tweets(request: TweetRequest):
                             request.account_id,
                             "unposted",
                             tweet.scheduled_time,
+                            tweet.risk_score,
                         ),
                     )
                     post_data = cursor.fetchone()
@@ -460,6 +468,7 @@ async def generate_tweets(request: TweetRequest):
                             "created_at": post_data[2],
                             "status": post_data[3],
                             "scheduled_time": post_data[4],
+                            "risk_score": post_data[5],
                         }
                     )
 

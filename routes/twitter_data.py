@@ -4,6 +4,7 @@ from db.db import get_connection
 from models.twitter_data import TwitterData
 from datetime import datetime, timedelta
 import json
+from typing import List
 
 router = APIRouter()
 
@@ -132,3 +133,43 @@ async def get_generated_tweets(user_id: int, account_id: int    ):
         raise HTTPException(status_code=500, detail=str(e))
     finally:
         conn.close() 
+        
+        
+class PostDeleteRequest(BaseModel):
+    post_ids: List[int]
+
+@router.delete("/delete-posts")
+async def delete_posts(request: PostDeleteRequest):
+    try:
+        conn = get_connection()
+        with conn.cursor() as cursor:
+            # Convert list of IDs to a tuple for SQL IN clause
+            post_ids = tuple(request.post_ids)
+            
+            # Delete posts with the given IDs
+            cursor.execute(
+                """
+                DELETE FROM posts 
+                WHERE id IN %s
+                RETURNING id
+                """,
+                (post_ids,)
+            )
+            
+            deleted_ids = cursor.fetchall()
+            conn.commit()
+            
+            if not deleted_ids:
+                raise HTTPException(status_code=404, detail="No posts found with the provided IDs")
+            
+            return {
+                "message": "Posts deleted successfully",
+                "deleted_post_ids": [row[0] for row in deleted_ids]
+            }
+            
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        conn.close() 
+        
+        
