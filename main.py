@@ -22,9 +22,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi import Body
 from pydantic import BaseModel
 import logging
-from typing import List
+from typing import List, Optional
 import asyncio
-# from routes.daily_tweet_generator import generate_tweet
+from agent.draft_tweet_agent import DraftTweetAgent, DraftTweetRequest, DraftTweetResponse
 import json
 from datetime import datetime, timedelta
 
@@ -74,6 +74,11 @@ class TweetFetchRequest(BaseModel):
     user_id: int
     account_id: int
 
+class DraftTweetGenerationRequest(BaseModel):
+    previous_tweet: str
+    num_drafts: int
+    prompt: Optional[str] = None
+
 @app.get("/")
 async def root():
     try:
@@ -85,6 +90,28 @@ async def root():
         return {"status": "success", "message": "Database connection is working"}
     except Exception as e:
         return {"status": "error", "message": str(e)}
+    
+@app.post("/api/generate-draft-tweets", response_model=DraftTweetResponse)
+async def generate_draft_tweets(request: DraftTweetGenerationRequest):
+    """
+    Generate draft tweets based on a previous tweet.
+    
+    Args:
+        request (DraftTweetGenerationRequest): The request containing the previous tweet, number of drafts needed, and optional prompt
+        
+    Returns:
+        DraftTweetResponse: The generated draft tweets
+    """
+    try:
+        agent = DraftTweetAgent()
+        response = await agent.get_response(DraftTweetRequest(
+            previous_tweet=request.previous_tweet,
+            num_drafts=request.num_drafts,
+            prompt=request.prompt
+        ))
+        return response
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
     
     
     
