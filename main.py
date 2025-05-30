@@ -21,6 +21,7 @@ from routes.post_request import router as post_request_router
 from routes.posts import router as posts_router
 from routes.events import router as events_router
 from routes.comments import router as comments_router
+from routes.comment_response_agent import router as comment_response_router
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi import Body, Query
 from pydantic import BaseModel
@@ -65,6 +66,7 @@ app.include_router(post_request_router, prefix="/api")
 app.include_router(posts_router, prefix="/api")
 app.include_router(events_router, prefix="/api")
 app.include_router(comments_router, prefix="/api")
+app.include_router(comment_response_router, prefix="/api")
 
 class TweetGenerationRequest(BaseModel):
     learning_data: str

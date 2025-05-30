@@ -169,9 +169,9 @@ Content matching the following category(ies) was detected in the text:
          "overall_engagement_potential": 0.12
        }}
        """
-
+    
     full_instructions = base_instructions
-
+    
     if character_settings:
         full_instructions += f"""
 
@@ -182,7 +182,7 @@ Content matching the following category(ies) was detected in the text:
     - Ensure all scheduled times are in the future relative to the current time ({datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")})
 
     Your tweets should reflect this character's personality, tone, and style while maintaining professional standards."""
-
+    
     return full_instructions
 
 
@@ -333,7 +333,7 @@ async def generate_tweets(request: TweetRequest):
                     (request.user_id, request.account_id),
                 )
                 character_settings = cursor.fetchone()
-
+                
                 if not character_settings:
                     raise HTTPException(
                         status_code=400,
@@ -396,7 +396,7 @@ async def generate_tweets(request: TweetRequest):
                 
                 current_time = datetime.utcnow()
                 thirty_minutes_ago = current_time - timedelta(minutes=30)
-
+                
                 cursor.execute(
                     """
                     SELECT COUNT(*) 
@@ -408,7 +408,7 @@ async def generate_tweets(request: TweetRequest):
                     (request.user_id, request.account_id, thirty_minutes_ago),
                 )
                 recent_tweets_count = cursor.fetchone()[0]
-
+                
                 if recent_tweets_count > 0:
                     raise HTTPException(
                         status_code=429,  # Too Many Requests
@@ -422,10 +422,10 @@ async def generate_tweets(request: TweetRequest):
         tweet_agent.instructions = get_tweet_agent_instructions(
             character_settings[0], competitor_data, previous_tweets, post_settings_data
         )
-
+        
         run_result = await Runner.run(tweet_agent, input="generate 5 tweets")
         result = run_result.final_output
-
+        
         if not isinstance(result, TweetsOutput):
             print(f"Unexpected response type: {type(result)}")
             print(f"Response content: {result}")
@@ -434,13 +434,13 @@ async def generate_tweets(request: TweetRequest):
             )
         if len(result.tweets) != 5:
             raise HTTPException(status_code=500, detail="Expected exactly five tweets")
-
+        
         # Save tweets to database
         conn = get_connection()
         try:
             with conn.cursor() as cursor:
                 current_time = datetime.utcnow()
-
+                
                 # Save each tweet as a separate row
                 saved_posts = []
                 for tweet in result.tweets:
@@ -463,17 +463,17 @@ async def generate_tweets(request: TweetRequest):
                     post_data = cursor.fetchone()
                     saved_posts.append(
                         {
-                            "id": post_data[0],
-                            "content": post_data[1],
-                            "created_at": post_data[2],
+                        "id": post_data[0],
+                        "content": post_data[1],
+                        "created_at": post_data[2],
                             "status": post_data[3],
                             "scheduled_time": post_data[4],
                             "risk_score": post_data[5],
                         }
                     )
-
+                
                 conn.commit()
-
+                
         except Exception as db_error:
             print(f"Database error: {str(db_error)}")
             raise HTTPException(
@@ -482,7 +482,7 @@ async def generate_tweets(request: TweetRequest):
             )
         finally:
             conn.close()
-
+        
         print("Tweets generated and saved successfully")
         return result
     except HTTPException as he:
