@@ -19,4 +19,15 @@ CREATE INDEX IF NOT EXISTS idx_comment_responses_status
 ON comment_responses(status);
 
 CREATE INDEX IF NOT EXISTS idx_comment_responses_user_account 
-ON comment_responses(user_id, account_id); 
+ON comment_responses(user_id, account_id);
+
+-- Add columns to post_reply table if they do not exist
+ALTER TABLE IF EXISTS post_reply ADD COLUMN IF NOT EXISTS id SERIAL PRIMARY KEY;
+ALTER TABLE IF EXISTS post_reply ADD COLUMN IF NOT EXISTS post_id VARCHAR(255);
+ALTER TABLE IF EXISTS post_reply ADD COLUMN IF NOT EXISTS original_post_url TEXT;
+ALTER TABLE IF EXISTS post_reply ADD COLUMN IF NOT EXISTS user_id BIGINT;
+ALTER TABLE IF EXISTS post_reply ADD COLUMN IF NOT EXISTS account_id BIGINT;
+ALTER TABLE IF EXISTS post_reply ADD COLUMN IF NOT EXISTS competitor_username VARCHAR(255);
+ALTER TABLE IF EXISTS post_reply ADD COLUMN IF NOT EXISTS generated_comment TEXT;
+ALTER TABLE IF EXISTS post_reply ADD COLUMN IF NOT EXISTS created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW();
+ALTER TABLE IF EXISTS post_reply ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(); 

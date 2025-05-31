@@ -7,6 +7,7 @@ from datetime import datetime, timedelta
 from fastapi import APIRouter, HTTPException
 from db.db import get_connection
 import logging
+import re
 
 load_dotenv()
 
@@ -454,94 +455,171 @@ async def test_analyze_and_respond_to_comments():
 
 @router.post("/test-analyze-and-comment-posts")
 async def test_analyze_and_comment_posts():
-    """Test endpoint with dummy data to analyze posts and generate comments."""
+    """Analyze real competitor posts and generate comments, saving them to post_reply."""
     try:
-        # Dummy data for testing
-        dummy_posts = [
-            {
-                "id": "post1",
-                "content": "We're thrilled to announce our new AI-powered analytics platform! Transform your data into actionable insights. #AI #Analytics #Innovation",
-                "created_at": "2024-03-20T10:00:00Z"
-            },
-            {
-                "id": "post2",
-                "content": "Join us for our upcoming webinar on 'The Future of Digital Marketing' next Thursday at 2 PM EST. Register now! #DigitalMarketing #Webinar",
-                "created_at": "2024-03-19T15:00:00Z"
-            },
-            {
-                "id": "post3",
-                "content": "Our team just completed a major milestone in our sustainability initiative. Proud of our progress towards a greener future! #Sustainability #GreenTech",
-                "created_at": "2024-03-18T09:00:00Z"
-            }
-        ]
-        
+        conn = get_connection()
+        try:
+            with conn.cursor() as cursor:
+                # Fetch real competitor posts
+                cursor.execute(
+                    """
+                    SELECT id, compititers_username, content, user_id, account_id
+                    FROM compititers_data
+                    ORDER BY created_at DESC
+                    """
+                )
+                rows = cursor.fetchall()
+                if not rows:
+                    return {"message": "No competitor data found in compititers_data table."}
+
+                # Prepare posts for analysis
+                real_posts_raw = [
+                    {
+                        "id": str(row[0]),
+                        "competitor_username": row[1],
+                        "content_json": row[2], # Store the raw JSONB content
+                        "user_id": row[3],
+                        "account_id": row[4]
+                    }
+                    for row in rows
+                ]
+
+                # Process raw data to extract text content and URLs, and prepare for analysis
+                real_posts_for_analysis = []
+                real_posts_map = {}
+
+                for post_raw in real_posts_raw:
+                    post_id = post_raw["id"]
+                    content_json = post_raw["content_json"]
+                    main_text = ""
+                    original_post_url = ""
+
+                    if content_json and isinstance(content_json, dict) and "tweets" in content_json and content_json["tweets"]:
+                        # Assuming the main content is the text of the first tweet
+                        first_tweet = content_json["tweets"][0]
+                        if "text" in first_tweet:
+                            main_text = first_tweet["text"]
+                            # Simple regex to find a URL in the text
+                            urls = re.findall(r'https?://\S+', main_text)
+                            if urls:
+                                original_post_url = urls[0] # Take the first URL found
+
+                    real_posts_for_analysis.append({"id": post_id, "content": main_text})
+                    # Store processed info for later insertion
+                    real_posts_map[post_id] = {
+                        "competitor_username": post_raw["competitor_username"],
+                        "user_id": post_raw["user_id"],
+                        "account_id": post_raw["account_id"],
+                        "original_post_url": original_post_url,
+                        "main_text": main_text # Store extracted text for potential use later
+                    }
+
+                if not real_posts_for_analysis:
+                     return {"message": "No valid post content found in competitor data."}
+
+
+        finally:
+            conn.close()
+
         # Analyze posts using the analysis agent
         analysis_result = await Runner.run(
             post_analysis_agent,
-            input=str(dummy_posts)
+            input=str(real_posts_for_analysis)
         )
-        
+
         # Handle the analysis output
         analysis_output = analysis_result.final_output
         if isinstance(analysis_output, str):
             import json
             analysis_output = json.loads(analysis_output)
-        
-        # Convert to PostAnalysisOutput model
         if not isinstance(analysis_output, PostAnalysisOutput):
             analysis_output = PostAnalysisOutput(**analysis_output)
-        
-        # Generate comments for each post
-        generated_comments = []
-        for post in analysis_output.posts:
-            # Generate comment using comment generation agent
-            comment_input = f"""Post Content: {post.content}
-            Topics: {', '.join(post.topics)}
-            Best Time: {post.best_time_to_comment}
-            Risk Score: {post.risk_score}
-            Tone: {post.tone}
-            Key Points: {', '.join(post.key_points)}
-            Engagement Strategy: {post.engagement_strategy}
-            Suggested Comments: {', '.join(post.suggested_comments)}"""
-            
-            comment_result = await Runner.run(
-                comment_generation_agent,
-                input=comment_input
-            )
-            
-            # Handle the comment output
-            comment_output = comment_result.final_output
-            if isinstance(comment_output, str):
-                import json
-                comment_output = json.loads(comment_output)
-            
-            # Convert to CommentGenerationOutput model
-            if not isinstance(comment_output, CommentGenerationOutput):
-                comment_output = CommentGenerationOutput(**comment_output)
-            
-            generated_comments.append({
-                "post_id": post.post_id,
-                "post_content": post.content,
-                "generated_comment": comment_output.comment_text,
-                "scheduled_time": comment_output.scheduled_time,
-                "engagement_score": comment_output.engagement_score,
-                "tone_match_score": comment_output.tone_match_score,
-                "context_relevance_score": comment_output.context_relevance_score,
-                "risk_score": post.risk_score,
-                "topics": post.topics,
-                "tone": post.tone,
-                "key_points": post.key_points
-            })
-        
+
+        # Generate comments and insert into post_reply
+        conn = get_connection()
+        try:
+            with conn.cursor() as cursor:
+                generated_comments = []
+                for post_analysis in analysis_output.posts:
+                    post_id = post_analysis.post_id
+                    orig = real_posts_map.get(post_id)
+
+                    if not orig:
+                        # This post was analyzed but not found in our raw data map (shouldn't happen)
+                        continue
+
+                    # Skip if we already have a reply for this post and user/account
+                    cursor.execute(
+                        """
+                        SELECT id FROM post_reply
+                        WHERE post_id = %s AND user_id = %s AND account_id = %s
+                        """,
+                        (post_id, orig["user_id"], orig["account_id"])
+                    )
+                    if cursor.fetchone():
+                        continue
+
+                    # Generate comment
+                    comment_input = f"""Post Content: {orig["main_text"]}\nTopics: {', '.join(post_analysis.topics)}\nBest Time: {post_analysis.best_time_to_comment}\nRisk Score: {post_analysis.risk_score}\nTone: {post_analysis.tone}\nKey Points: {', '.join(post_analysis.key_points)}\nEngagement Strategy: {post_analysis.engagement_strategy}\nSuggested Comments: {', '.join(post_analysis.suggested_comments)}"""
+
+                    comment_result = await Runner.run(
+                        comment_generation_agent,
+                        input=comment_input
+                    )
+
+                    comment_output = comment_result.final_output
+                    if isinstance(comment_output, str):
+                        import json
+                        comment_output = json.loads(comment_output)
+                    if not isinstance(comment_output, CommentGenerationOutput):
+                        comment_output = CommentGenerationOutput(**comment_output)
+
+                    # Insert into post_reply
+                    cursor.execute(
+                        """
+                        INSERT INTO post_reply (
+                            post_id,
+                            original_post_url,
+                            user_id,
+                            account_id,
+                            competitor_username,
+                            generated_comment,
+                            created_at
+                        )
+                        VALUES (%s, %s, %s, %s, %s, %s, NOW())
+                        RETURNING id
+                        """,
+                        (
+                            post_id,
+                            orig["original_post_url"], # Use extracted URL
+                            orig["user_id"],
+                            orig["account_id"],
+                            orig["competitor_username"],
+                            comment_output.comment_text
+                        )
+                    )
+                    reply_id = cursor.fetchone()[0]
+                    generated_comments.append({
+                        "post_id": post_id,
+                        "competitor_username": orig["competitor_username"],
+                        "generated_comment": comment_output.comment_text,
+                        "reply_id": reply_id,
+                        "scheduled_time": comment_output.scheduled_time,
+                        "engagement_score": comment_output.engagement_score,
+                        "tone_match_score": comment_output.tone_match_score,
+                        "context_relevance_score": comment_output.context_relevance_score
+                    })
+                conn.commit()
+        finally:
+            conn.close()
+
         return {
-            "message": "Test completed successfully",
-            "analysis_result": analysis_output.dict(),
+            "message": "Comments generated and saved to post_reply table.",
             "generated_comments": generated_comments
         }
-            
     except Exception as e:
-        print(f"Error in test endpoint: {str(e)}")
+        print(f"Error in analyze-and-comment-posts endpoint: {str(e)}")
         raise HTTPException(
             status_code=500,
-            detail=f"Failed to process test data: {str(e)}"
+            detail=f"Failed to process real competitor data: {str(e)}"
         ) 
