@@ -481,6 +481,7 @@ async def get_comments(
                     c.account_username,
                     c.commentor_username,
                     c.original_comment,
+                    c.recommended_time,
                     c.tweet_url,
                     c.post_status,
                     c.created_at
@@ -530,9 +531,10 @@ async def get_comments(
                     "account_username": row[4],
                     "commentor_username": row[5],
                     "original_comment": row[6],
-                    "tweet_url": row[7],
-                    "post_status": row[8],
-                    "created_at": row[9]
+                    "recommended_time": row[7],
+                    "tweet_url": row[8],
+                    "post_status": row[9],
+                    "created_at": row[10]
                 }
                 comments.append(comment)
             
@@ -553,5 +555,3 @@ async def get_comments(
         )
     finally:
         conn.close()
-
-

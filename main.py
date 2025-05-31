@@ -1,4 +1,4 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from db.db import get_connection
 from routes.users import router as user_router
 from routes.twitter import router as twitter_router
@@ -22,6 +22,8 @@ from routes.posts import router as posts_router
 from routes.events import router as events_router
 from routes.comments import router as comments_router
 from routes.comment_response_agent import router as comment_response_router
+from routes.comment_workflow import router as comment_workflow_router
+from routes.change_time import router as change_time_router
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi import Body, Query
 from pydantic import BaseModel
@@ -78,6 +80,7 @@ app.include_router(daily_tweet_generator.router, prefix="/api")
 app.include_router(persona.router, prefix="/api")
 app.include_router(comment_response_agent.router, prefix="/api")
 app.include_router(comment_workflow.router, prefix="/api")
+app.include_router(change_time_router, prefix="/api")
 
 class TweetGenerationRequest(BaseModel):
     learning_data: str
