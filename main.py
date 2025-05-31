@@ -30,21 +30,23 @@ from typing import List, Optional
 import asyncio
 import json
 from datetime import datetime, timedelta
+from routes import daily_tweet_generator, persona, comment_response_agent, comment_workflow
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
 
 app = FastAPI()
-origins = [
-    "http://localhost:3000",
-    "https://adkaiagentfrontend.vercel.app"
-]
-import openai
-openai.api_key = os.getenv("OPENAI_API_KEY")
+
+# Configure CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,  # Frontend URL
+    allow_origins=["*"],  # Allows all origins
     allow_credentials=True,
-    allow_methods=["*"],     # Or ["GET", "POST"]
-    allow_headers=["*"],
+    allow_methods=["*"],  # Allows all methods
+    allow_headers=["*"],  # Allows all headers
 )
+
 # Include the user routes
 app.include_router(user_router, prefix="/api")
 app.include_router(twitter_router, prefix="/api")
@@ -67,6 +69,10 @@ app.include_router(posts_router, prefix="/api")
 app.include_router(events_router, prefix="/api")
 app.include_router(comments_router, prefix="/api")
 app.include_router(comment_response_router, prefix="/api")
+app.include_router(daily_tweet_generator.router, prefix="/api")
+app.include_router(persona.router, prefix="/api")
+app.include_router(comment_response_agent.router, prefix="/api")
+app.include_router(comment_workflow.router, prefix="/api")
 
 class TweetGenerationRequest(BaseModel):
     learning_data: str
@@ -92,15 +98,7 @@ class ReplyResponse(BaseModel):
 
 @app.get("/")
 async def root():
-    try:
-        conn = get_connection()
-        # Test the connection
-        with conn.cursor() as cursor:
-            cursor.execute("SELECT 1")
-        conn.close()
-        return {"status": "success", "message": "Database connection is working"}
-    except Exception as e:
-        return {"status": "error", "message": str(e)}
+    return {"message": "Welcome to ADK Agent Backend API"}
 
 @app.get("/api/replies/{account_username}")
 async def get_replies(
