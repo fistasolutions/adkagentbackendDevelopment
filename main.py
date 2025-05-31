@@ -34,6 +34,7 @@ from datetime import datetime, timedelta
 app = FastAPI()
 origins = [
     "http://localhost:3000",
+    "http://localhost:8000",
     "https://adkaiagentfrontend.vercel.app"
 ]
 import openai

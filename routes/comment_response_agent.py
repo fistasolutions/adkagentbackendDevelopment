@@ -7,6 +7,7 @@ from datetime import datetime, timedelta
 from fastapi import APIRouter, HTTPException
 from db.db import get_connection
 import logging
+import json
 
 load_dotenv()
 
@@ -26,6 +27,7 @@ class CommentAnalysis(BaseModel):
     key_points: List[str]
     tone: str
     engagement_potential: float
+    commentor_username: str  # Added field for commentor's username
 
 class CommentResponse(BaseModel):
     comment_id: str
@@ -75,8 +77,22 @@ class CommentGenerationOutput(BaseModel):
     tone_match_score: float
     context_relevance_score: float
 
-def get_comment_analysis_agent_instructions() -> str:
-    return """You are an expert comment analyzer and response generator. Your role is to:
+def get_comment_analysis_agent_instructions(
+    post_settings_data: dict = None,
+) -> str:
+    posting_day_info = ""
+    if post_settings_data and post_settings_data.get("posting_day"):
+        posting_day_info = f"""
+        Posting Schedule Information:
+        - Allowed posting days: {post_settings_data['posting_day']}
+        - Posting times: {post_settings_data['posting_time']}
+        - Posting frequency: {post_settings_data['posting_frequency']}
+        -Today is {datetime.utcnow().strftime("%Y-%m-%d")}
+        
+        When scheduling responses, strictly adhere to these posting schedule constraints.
+        """
+
+    return f"""You are an expert comment analyzer and response generator. Your role is to:
 
     1. Deep Comment Analysis:
        - Analyze comment sentiment and tone
@@ -87,7 +103,7 @@ def get_comment_analysis_agent_instructions() -> str:
     
     2. Response Decision Making:
        - Determine if response is warranted
-       - Identify optimal response timing
+       - Identify optimal response timing based on posting schedule
        - Evaluate potential impact
        - Assess risk factors
        - Plan engagement strategy
@@ -97,7 +113,7 @@ def get_comment_analysis_agent_instructions() -> str:
        - Consider post context and tone
        - Plan engagement approach
        - Assess response priority
-       - Determine optimal timing
+       - Determine optimal timing within allowed posting schedule
     
     4. Quality Assurance:
        - Ensure response relevance
@@ -106,10 +122,11 @@ def get_comment_analysis_agent_instructions() -> str:
        - Assess potential impact
        - Evaluate engagement potential
     
+    {posting_day_info}
     You must return a JSON object with this exact structure:
-    {
+    {{
         "comments": [
-            {
+            {{
                 "comment_id": "string",
                 "post_id": "string",
                 "comment_text": "string",
@@ -123,9 +140,9 @@ def get_comment_analysis_agent_instructions() -> str:
                 "key_points": ["string"],
                 "tone": "string",
                 "engagement_potential": float
-            }
+            }}
         ]
-    }"""
+    }}"""
 
 def get_comment_response_agent_instructions() -> str:
     return """You are an expert at generating highly engaging, natural, and human-like responses to social media comments. Your role is to:
@@ -174,95 +191,6 @@ def get_comment_response_agent_instructions() -> str:
         "response_type": "string"
     }"""
 
-def get_post_analysis_agent_instructions() -> str:
-    return """You are an expert post analyzer and comment strategist. Your role is to:
-
-    1. Deep Content Analysis:
-       - Analyze post content, tone, and context
-       - Identify key themes and topics
-       - Evaluate engagement potential
-       - Assess risk factors and potential backlash
-       - Determine optimal engagement times
-    
-    2. Comment Strategy Development:
-       - Identify valuable engagement opportunities
-       - Determine best commenting approaches
-       - Assess potential impact
-       - Evaluate risk levels
-       - Plan optimal timing
-    
-    3. Contextual Understanding:
-       - Consider post context and audience
-       - Analyze current trends and timing
-       - Evaluate brand voice alignment
-       - Assess community engagement patterns
-       - Identify potential conversation starters
-    
-    4. Risk Assessment:
-       - Evaluate potential controversy
-       - Assess brand alignment
-       - Consider audience sensitivity
-       - Identify safe engagement boundaries
-       - Plan risk mitigation strategies
-    
-    You must return a JSON object with this exact structure:
-    {
-        "posts": [
-            {
-                "post_id": "string",
-                "content": "string",
-                "sentiment_score": float,
-                "engagement_potential": float,
-                "best_time_to_comment": "string",
-                "suggested_comments": ["string"],
-                "risk_score": float,
-                "topics": ["string"],
-                "tone": "string",
-                "key_points": ["string"],
-                "engagement_strategy": "string"
-            }
-        ]
-    }"""
-
-def get_comment_generation_agent_instructions() -> str:
-    return """You are an expert at generating high-quality, professional comments for social media posts. Your role is to:
-
-    1. Comment Quality Standards:
-       - Generate comments that are professional and on-brand
-       - Ensure contextual relevance and value
-       - Create engaging and meaningful interactions
-       - Maintain risk-free and backlash-proof content
-       - Match the post's tone and style
-    
-    2. Contextual Understanding:
-       - Consider original post context deeply
-       - Align with brand voice and guidelines
-       - Stay current with trends
-       - Follow community standards
-       - Understand audience expectations
-    
-    3. Content Guidelines:
-       - Avoid controversial topics
-       - Steer clear of generic responses
-       - Prevent overly promotional content
-       - Eliminate negative or divisive language
-       - Ensure platform-appropriate content
-    
-    4. Engagement Optimization:
-       - Add value to conversations
-       - Maintain professional writing standards
-       - Match post tone perfectly
-       - Ensure platform appropriateness
-       - Encourage meaningful interaction
-    
-    You must return a JSON object with this exact structure:
-    {
-        "comment_text": "string",
-        "scheduled_time": "string",
-        "engagement_score": float,
-        "tone_match_score": float,
-        "context_relevance_score": float
-    }"""
 
 comment_analysis_agent = Agent(
     name="Comment Analysis Agent",
@@ -276,103 +204,102 @@ comment_response_agent = Agent(
     output_type=ResponseOutput
 )
 
-post_analysis_agent = Agent(
-    name="Post Analysis Agent",
-    instructions=get_post_analysis_agent_instructions(),
-    output_type=PostAnalysisOutput
-)
-
-comment_generation_agent = Agent(
-    name="Comment Generation Agent",
-    instructions=get_comment_generation_agent_instructions(),
-    output_type=CommentGenerationOutput
-)
-
-async def get_last_week_posts_and_comments(user_id: str, account_id: str) -> List[Dict[str, Any]]:
+async def get_last_week_posts_and_comments(user_id: str, account_username: str) -> List[Dict[str, Any]]:
     """Get posts and their comments from the last week."""
     conn = get_connection()
     try:
         with conn.cursor() as cursor:
-            # Get posts from last week
-            one_week_ago = datetime.utcnow() - timedelta(days=7)
+            # Get posts from current week
             cursor.execute(
                 """
-                SELECT p.id, p.content, p.created_at, c.id as comment_id, c.content as comment_content, c.created_at as comment_created_at
-                FROM posts p
-                LEFT JOIN comments c ON p.id = c.post_id
-                WHERE p.user_id = %s 
-                AND p.account_id = %s
-                AND p.created_at > %s
-                ORDER BY p.created_at DESC, c.created_at ASC
+                SELECT c.id, c.content, c.created_at
+                FROM comments c
+                WHERE c.user_id = %s 
+                AND c.account_username = %s
+                AND c.created_at >= DATE_TRUNC('week', CURRENT_TIMESTAMP)
+                ORDER BY c.created_at DESC
                 """,
-                (user_id, account_id, one_week_ago)
+                (user_id, account_username)
             )
             rows = cursor.fetchall()
             
             # Organize posts and comments
-            posts = {}
+            processed_comments = []
             for row in rows:
-                post_id = row[0]
-                if post_id not in posts:
-                    posts[post_id] = {
-                        "id": post_id,
-                        "content": row[1],
-                        "created_at": row[2],
-                        "comments": []
-                    }
-                if row[3]:  # If there's a comment
-                    posts[post_id]["comments"].append({
-                        "id": row[3],
-                        "content": row[4],
-                        "created_at": row[5]
-                    })
+                try:
+                    content_data = json.loads(row[1])
+                    for tweet_data in content_data:
+                        # Process each comment in the replies
+                        if "replies" in tweet_data:
+                            for reply in tweet_data["replies"]:
+                                # Skip if reply already has a status
+                                if "status" in reply and reply["status"] == "responded":
+                                    continue
+                                    
+                                processed_comment = {
+                                    "tweet_id": tweet_data["tweet_id"],
+                                    "tweet_text": tweet_data["tweet_text"],
+                                    "comment": reply["text"],
+                                    "username": reply["username"],
+                                    "comment_id": row[0],
+                                    "reply_index": tweet_data["replies"].index(reply)
+                                }
+                                processed_comments.append(processed_comment)
+                except json.JSONDecodeError:
+                    print(f"Error parsing JSON for row {row[0]}")
+                    continue
             
-            return list(posts.values())
+            return processed_comments
     finally:
         conn.close()
 
 
 
 @router.post("/test-analyze-and-respond-comments")
-async def test_analyze_and_respond_to_comments():
+async def test_analyze_and_respond_to_comments(user_id:str,account_username:str):
     """Test endpoint with dummy data to analyze comments and generate responses."""
     try:
-        # Dummy data for testing
-        dummy_posts_with_comments = [
-            {
-                "id": "post1",
-                "content": "We're thrilled to announce our new AI-powered analytics platform! Transform your data into actionable insights. #AI #Analytics #Innovation",
-                "created_at": "2024-03-20T10:00:00Z",
-                "comments": [
-                    {
-                        "id": "comment1",
-                        "content": "This looks amazing! Can't wait to try it out. How does it compare to other solutions?",
-                        "created_at": "2024-03-20T10:05:00Z"
-                    },
-                    {
-                        "id": "comment2",
-                        "content": "What's the pricing structure? And do you offer a free trial?",
-                        "created_at": "2024-03-20T10:10:00Z"
-                    }
-                ]
-            },
-            {
-                "id": "post2",
-                "content": "Join us for our upcoming webinar on 'The Future of Digital Marketing' next Thursday at 2 PM EST. Register now! #DigitalMarketing #Webinar",
-                "created_at": "2024-03-19T15:00:00Z",
-                "comments": [
-                    {
-                        "id": "comment3",
-                        "content": "Will there be a recording available for those who can't attend live?",
-                        "created_at": "2024-03-19T15:30:00Z"
-                    }
-                ]
+        # Get unresponded comments
+        posts_with_comments = await get_last_week_posts_and_comments(user_id,account_username)
+        if not posts_with_comments:
+            return {"message": "No new comments requiring responses found"}
+            
+        analysis_input = str(posts_with_comments)
+        
+        conn = get_connection()
+        with conn.cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT posting_day, posting_time, posting_frequency,posting_time
+                FROM persona_notify 
+                WHERE notify_type = 'commentReply'
+                AND user_id = %s 
+                """,
+                (user_id,),
+            )
+            post_settings = cursor.fetchone()
+            
+            if not post_settings:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Post settings data not found. Please set up your post settings before generating tweets.",
+                )
+            
+            # Parse the post settings
+            posting_day = post_settings[0]  # This is a JSON object
+            posting_time = post_settings[1]  # This is a JSON object
+            posting_frequency = post_settings[2]
+            posting_time = post_settings[3]
+            
+            # Format post settings data for the agent
+            post_settings_data = {
+                "posting_day": posting_day,
+                "posting_time": posting_time,
+                "posting_frequency": posting_frequency,
+                "posting_time": posting_time
             }
-        ]
-        
-        # Prepare input for analysis agent
-        analysis_input = str(dummy_posts_with_comments)
-        
+            comment_analysis_agent.instructions = get_comment_analysis_agent_instructions(post_settings_data)
+
         # Analyze comments using the analysis agent
         analysis_result = await Runner.run(
             comment_analysis_agent,
@@ -382,7 +309,6 @@ async def test_analyze_and_respond_to_comments():
         # Handle the analysis output
         analysis_output = analysis_result.final_output
         if isinstance(analysis_output, str):
-            import json
             analysis_output = json.loads(analysis_output)
         
         # Convert to AnalysisOutput model
@@ -400,45 +326,110 @@ async def test_analyze_and_respond_to_comments():
         
         # Generate responses for each comment
         responses = []
-        for comment in comments_to_respond:
-            # Generate response using response agent
-            response_input = f"""Post Content: {comment.comment_text}
-            Comment: {comment.comment_text}
-            Comment Type: {comment.comment_type}
-            Key Points: {', '.join(comment.key_points)}
-            Tone: {comment.tone}
-            Context: {comment.reason}"""
-            
-            response_result = await Runner.run(
-                comment_response_agent,
-                input=response_input
-            )
-            
-            # Handle the response output
-            response_output = response_result.final_output
-            if isinstance(response_output, str):
-                import json
-                response_output = json.loads(response_output)
-            
-            # Convert to ResponseOutput model
-            if not isinstance(response_output, ResponseOutput):
-                response_output = ResponseOutput(**response_output)
-            
-            responses.append({
-                "comment_id": comment.comment_id,
-                "post_id": comment.post_id,
-                "response_text": response_output.response_text,
-                "scheduled_time": comment.scheduled_time,
-                "priority": comment.response_priority,
-                "engagement_score": response_output.engagement_score,
-                "tone_match_score": response_output.tone_match_score,
-                "context_relevance_score": response_output.context_relevance_score,
-                "response_type": response_output.response_type,
-                "comment_type": comment.comment_type,
-                "key_points": comment.key_points,
-                "tone": comment.tone
-            })
-        
+        conn = get_connection()
+        try:
+            with conn.cursor() as cursor:
+                for comment in comments_to_respond:
+                    # Generate response using response agent
+                    response_input = f"""Post Content: {comment.comment_text}
+                    Comment: {comment.comment_text}
+                    Comment Type: {comment.comment_type}
+                    Key Points: {', '.join(comment.key_points)}
+                    Tone: {comment.tone}
+                    Context: {comment.reason}
+                    Username: {comment.commentor_username}"""
+                    
+                    response_result = await Runner.run(
+                        comment_response_agent,
+                        input=response_input
+                    )
+                    
+                    # Handle the response output
+                    response_output = response_result.final_output
+                    if isinstance(response_output, str):
+                        response_output = json.loads(response_output)
+                    
+                    # Convert to ResponseOutput model
+                    if not isinstance(response_output, ResponseOutput):
+                        response_output = ResponseOutput(**response_output)
+                
+                    # Generate X.com URL for the tweet
+                    tweet_url = f"https://x.com/i/web/status/{comment.post_id}"
+                    
+                    # First, get the current content
+                    cursor.execute(
+                        "SELECT content FROM comments WHERE id = %s",
+                        (comment.comment_id,)
+                    )
+                    current_content = cursor.fetchone()[0]
+                    content_data = json.loads(current_content)
+                    
+                    # Update the status in the replies array
+                    for tweet in content_data:
+                        if tweet["tweet_id"] == comment.post_id:
+                            for reply in tweet["replies"]:
+                                if reply["username"] == comment.commentor_username and reply["text"] == comment.comment_text:
+                                    reply["status"] = "responded"
+                                    reply["response"] = response_output.response_text
+                                    reply["scheduled_time"] = comment.scheduled_time
+                                    break
+                    
+                    # Update the content in the database
+                    cursor.execute(
+                        """
+                        UPDATE comments 
+                        SET content = %s,
+                            updated_at = CURRENT_TIMESTAMP
+                        WHERE id = %s
+                        RETURNING id
+                        """,
+                        (json.dumps(content_data), comment.comment_id)
+                    )
+                    
+                    # Save response to database
+                    cursor.execute(
+                        """
+                        INSERT INTO comments_reply 
+                        (reply_text, risk_score, user_id, account_username, schedule_time, commentor_username, tweet_id, original_comment, tweet_url)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                        RETURNING id
+                        """,
+                        (
+                            response_output.response_text,
+                            20,
+                            user_id,
+                            account_username,
+                            datetime.utcnow() if comment.scheduled_time == "Immediate" else comment.scheduled_time,
+                            comment.commentor_username,
+                            comment.post_id,
+                            comment.comment_text,
+                            tweet_url
+                        )
+                    )
+                    reply_id = cursor.fetchone()[0]
+                    
+                    responses.append({
+                        "reply_id": reply_id,
+                        "comment_id": comment.comment_id,
+                        "post_id": comment.post_id,
+                        "response_text": response_output.response_text,
+                        "scheduled_time": comment.scheduled_time,
+                        "priority": comment.response_priority,
+                        "engagement_score": response_output.engagement_score,
+                        "tone_match_score": response_output.tone_match_score,
+                        "context_relevance_score": response_output.context_relevance_score,
+                        "response_type": response_output.response_type,
+                        "comment_type": comment.comment_type,
+                        "key_points": comment.key_points,
+                        "tone": comment.tone,
+                        "risk_score": 20,
+                        "commentor_username": comment.commentor_username
+                    })
+                
+                conn.commit()
+        finally:
+            conn.close()
+
         return {
             "message": "Test completed successfully",
             "analysis_result": analysis_output.dict(),
@@ -452,96 +443,115 @@ async def test_analyze_and_respond_to_comments():
             detail=f"Failed to process test data: {str(e)}"
         )
 
-@router.post("/test-analyze-and-comment-posts")
-async def test_analyze_and_comment_posts():
-    """Test endpoint with dummy data to analyze posts and generate comments."""
+
+
+@router.get("/comments")
+async def get_comments(
+    user_id: str,
+    account_username: str,
+    post_status: Optional[str] = None,
+    page: int = 1,
+    limit: int = 50
+):
+    """
+    Get comments for a user with filtering and pagination.
+    
+    Parameters:
+    - user_id: The user's ID
+    - account_username: The account username
+    - post_status: Filter by post status (optional, use "all" to get all posts)
+    - page: Page number (default: 1)
+    - limit: Number of records per page (default: 50, max: 50)
+    """
+    if limit > 50:
+        limit = 50
+        
+    offset = (page - 1) * limit
+    
+    conn = get_connection()
     try:
-        # Dummy data for testing
-        dummy_posts = [
-            {
-                "id": "post1",
-                "content": "We're thrilled to announce our new AI-powered analytics platform! Transform your data into actionable insights. #AI #Analytics #Innovation",
-                "created_at": "2024-03-20T10:00:00Z"
-            },
-            {
-                "id": "post2",
-                "content": "Join us for our upcoming webinar on 'The Future of Digital Marketing' next Thursday at 2 PM EST. Register now! #DigitalMarketing #Webinar",
-                "created_at": "2024-03-19T15:00:00Z"
-            },
-            {
-                "id": "post3",
-                "content": "Our team just completed a major milestone in our sustainability initiative. Proud of our progress towards a greener future! #Sustainability #GreenTech",
-                "created_at": "2024-03-18T09:00:00Z"
+        with conn.cursor() as cursor:
+            # Build the base query
+            query = """
+                SELECT 
+                    c.id,
+                    c.reply_text,
+                    c.schedule_time,
+                    c.risk_score,
+                    c.account_username,
+                    c.commentor_username,
+                    c.original_comment,
+                    c.tweet_url,
+                    c.post_status,
+                    c.created_at
+                FROM comments_reply c
+                WHERE c.user_id = %s 
+                AND c.account_username = %s
+            """
+            params = [user_id, account_username]
+            
+            # Add status filter if provided and not "all"
+            if post_status and post_status.lower() != "all":
+                query += " AND c.post_status = %s"
+                params.append(post_status)
+            
+            # Add pagination
+            query += " ORDER BY c.created_at DESC LIMIT %s OFFSET %s"
+            params.extend([limit, offset])
+            
+            # Execute the query
+            cursor.execute(query, params)
+            rows = cursor.fetchall()
+            
+            # Get total count for pagination
+            count_query = """
+                SELECT COUNT(*)
+                FROM comments_reply c
+                WHERE c.user_id = %s 
+                AND c.account_username = %s
+            """
+            count_params = [user_id, account_username]
+            
+            if post_status and post_status.lower() != "all":
+                count_query += " AND c.post_status = %s"
+                count_params.append(post_status)
+            
+            cursor.execute(count_query, count_params)
+            total_count = cursor.fetchone()[0]
+            
+            # Process the results
+            comments = []
+            for row in rows:
+                comment = {
+                    "id": row[0],
+                    "reply_text": row[1],
+                    "schedule_time": row[2],
+                    "risk_score": row[3],
+                    "account_username": row[4],
+                    "commentor_username": row[5],
+                    "original_comment": row[6],
+                    "tweet_url": row[7],
+                    "post_status": row[8],
+                    "created_at": row[9]
+                }
+                comments.append(comment)
+            
+            return {
+                "comments": comments,
+                "pagination": {
+                    "total": total_count,
+                    "page": page,
+                    "limit": limit,
+                    "total_pages": (total_count + limit - 1) // limit
+                }
             }
-        ]
-        
-        # Analyze posts using the analysis agent
-        analysis_result = await Runner.run(
-            post_analysis_agent,
-            input=str(dummy_posts)
-        )
-        
-        # Handle the analysis output
-        analysis_output = analysis_result.final_output
-        if isinstance(analysis_output, str):
-            import json
-            analysis_output = json.loads(analysis_output)
-        
-        # Convert to PostAnalysisOutput model
-        if not isinstance(analysis_output, PostAnalysisOutput):
-            analysis_output = PostAnalysisOutput(**analysis_output)
-        
-        # Generate comments for each post
-        generated_comments = []
-        for post in analysis_output.posts:
-            # Generate comment using comment generation agent
-            comment_input = f"""Post Content: {post.content}
-            Topics: {', '.join(post.topics)}
-            Best Time: {post.best_time_to_comment}
-            Risk Score: {post.risk_score}
-            Tone: {post.tone}
-            Key Points: {', '.join(post.key_points)}
-            Engagement Strategy: {post.engagement_strategy}
-            Suggested Comments: {', '.join(post.suggested_comments)}"""
-            
-            comment_result = await Runner.run(
-                comment_generation_agent,
-                input=comment_input
-            )
-            
-            # Handle the comment output
-            comment_output = comment_result.final_output
-            if isinstance(comment_output, str):
-                import json
-                comment_output = json.loads(comment_output)
-            
-            # Convert to CommentGenerationOutput model
-            if not isinstance(comment_output, CommentGenerationOutput):
-                comment_output = CommentGenerationOutput(**comment_output)
-            
-            generated_comments.append({
-                "post_id": post.post_id,
-                "post_content": post.content,
-                "generated_comment": comment_output.comment_text,
-                "scheduled_time": comment_output.scheduled_time,
-                "engagement_score": comment_output.engagement_score,
-                "tone_match_score": comment_output.tone_match_score,
-                "context_relevance_score": comment_output.context_relevance_score,
-                "risk_score": post.risk_score,
-                "topics": post.topics,
-                "tone": post.tone,
-                "key_points": post.key_points
-            })
-        
-        return {
-            "message": "Test completed successfully",
-            "analysis_result": analysis_output.dict(),
-            "generated_comments": generated_comments
-        }
             
     except Exception as e:
-        print(f"Error in test endpoint: {str(e)}")
         raise HTTPException(
             status_code=500,
-            detail=f"Failed to process test data: {str(e)}"
-        ) 
+            detail=f"Failed to fetch comments: {str(e)}"
+        )
+    finally:
+        conn.close()
+
+

@@ -348,8 +348,8 @@ async def delete_notify_setting(notify_id: int):
     finally:
         conn.close()
 
-@router.put("/notify-settings/user/{user_id}/post-mode/{account_id}", response_model=List[NotifySettingResponse])
-async def update_user_post_mode(user_id: int, account_id: int, post_mode_update: PostModeUpdate):
+@router.put("/notify-settings/user/{user_id}/post-mode/{account_id}/notify_type/{notify_type}", response_model=List[NotifySettingResponse])
+async def update_user_post_mode(user_id: int, account_id: int,notify_type:str, post_mode_update: PostModeUpdate):
     try:
         conn = get_connection()
         with conn.cursor() as cursor:
@@ -364,11 +364,11 @@ async def update_user_post_mode(user_id: int, account_id: int, post_mode_update:
                 SET post_mode = %s
                 WHERE user_id = %s
                 AND account_id = %s
-                AND notify_type = 'post'
+                AND notify_type = %s
                 RETURNING notify_id, posting_day, posting_time, sentence_length, 
                 notify_type, template_use, target_hashtag, user_id, account_id, created_at,
                 posting_frequency, pre_create, post_mode, template_text""",
-                (post_mode_update.post_mode, user_id, account_id)
+                (post_mode_update.post_mode, user_id, account_id,notify_type)
             )
             
             updated_settings = cursor.fetchall()
