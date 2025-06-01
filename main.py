@@ -33,7 +33,8 @@ from datetime import datetime, timedelta
 app = FastAPI()
 origins = [
     "http://localhost:3000",
-    "https://adkaiagentfrontend.vercel.app"
+    "https://adkaiagentfrontend.vercel.app",
+    "https://adkagentbackenddevelopment-production.up.railway.app"
 ]
 import openai
 openai.api_key = os.getenv("OPENAI_API_KEY")
