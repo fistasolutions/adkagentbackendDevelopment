@@ -42,15 +42,14 @@ app = FastAPI()
 origins = [
     "http://localhost:3000",
     "https://adkaiagentfrontend.vercel.app",
-    "https://adkagentbackenddevelopment-production.up.railway.app"
-    "http://localhost:8000",
-    "https://adkaiagentfrontend.vercel.app"
+    "https://adkagentbackenddevelopment-production.up.railway.app",
+    "http://localhost:8000"
 ]
 import openai
 openai.api_key = os.getenv("OPENAI_API_KEY")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Allows all origins
+    allow_origins=origins,  # Use the defined origins list
     allow_credentials=True,
     allow_methods=["*"],  # Allows all methods
     allow_headers=["*"],  # Allows all headers
