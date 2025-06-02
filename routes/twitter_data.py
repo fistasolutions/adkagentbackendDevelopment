@@ -224,3 +224,43 @@ async def get_combined_twitter_data(user_id: int, username: str):
             conn.close() 
         
         
+@router.get("/combined-twitter-comments")
+async def get_combined_twitter_comments(user_id: int, account_username: str):
+    """
+    Fetch all combined tweets and comments from the comments table for a given user_id and account_username.
+    Combine all tweet objects from the content JSON, and for duplicate tweet_ids, only keep the latest (by created_at).
+    Returns the combined, deduplicated list as tweets.
+    """
+    try:
+        conn = get_connection()
+        with conn.cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT content, created_at
+                FROM comments
+                WHERE user_id = %s AND account_username = %s
+                ORDER BY created_at DESC
+                """,
+                (user_id, account_username)
+            )
+            rows = cursor.fetchall()
+            tweet_map = {}
+            for row in rows:
+                content, created_at = row
+                try:
+                    tweets = json.loads(content)
+                    for tweet in tweets:
+                        tweet_id = tweet.get("tweet_id")
+                        if tweet_id and tweet_id not in tweet_map:
+                            tweet_map[tweet_id] = tweet
+                except Exception:
+                    continue
+            combined_tweets = list(tweet_map.values())
+            return {"tweets": combined_tweets}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        if 'conn' in locals():
+            conn.close() 
+        
+        
