@@ -67,9 +67,9 @@ async def post_replies():
                 cursor.execute(
                     """
                     SELECT id, tweet_id, reply_text 
-                    FROM comments_reply 
+                    FROM post_reply 
                     WHERE post_status = 'unposted'
-                    AND (schedule_time <= NOW())
+                    AND (schedule_time <= NOW()) OR (recommended_time <= NOW())
                     ORDER BY COALESCE(schedule_time, created_at) ASC
                     """
                 )
@@ -95,7 +95,7 @@ async def post_replies():
                         # Update the status in database
                         cursor.execute(
                             """
-                            UPDATE comments_reply 
+                            UPDATE post_reply 
                             SET post_status = 'posted',
                                 posted_id = %s
                             WHERE id = %s

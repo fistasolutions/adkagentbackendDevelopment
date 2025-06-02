@@ -175,3 +175,52 @@ async def delete_posts(request: PostDeleteRequest):
         conn.close() 
         
         
+@router.get("/combined-twitter-data")
+async def get_combined_twitter_data(user_id: int, username: str):
+    """
+    Fetch and combine all post_data for a given user_id and username.
+    Only include the latest tweet for each unique tweet_id.
+    """
+    try:
+        conn = get_connection()
+        with conn.cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT data_json
+                FROM post_data
+                WHERE user_id = %s AND username = %s
+                ORDER BY created_at DESC
+                """,
+                (user_id, username)
+            )
+            results = cursor.fetchall()
+            if not results:
+                return {
+                    "username": username,
+                    "total_tweets_analyzed": 0,
+                    "tweets": []
+                }
+            tweet_map = {}
+            for row in results:
+                try:
+                    data = json.loads(row[0])
+                    tweets = data.get("tweets", [])
+                    for tweet in tweets:
+                        tweet_id = tweet.get("tweet_id")
+                        if tweet_id and tweet_id not in tweet_map:
+                            tweet_map[tweet_id] = tweet
+                except Exception:
+                    continue
+            all_tweets = list(tweet_map.values())
+            return {
+                "username": username,
+                "total_tweets_analyzed": len(all_tweets),
+                "tweets": all_tweets
+            }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        if 'conn' in locals():
+            conn.close() 
+        
+        
