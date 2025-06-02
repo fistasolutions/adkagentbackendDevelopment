@@ -77,6 +77,9 @@ class CommentGenerationOutput(BaseModel):
     tone_match_score: float
     context_relevance_score: float
 
+class DeleteCommentsRequest(BaseModel):
+    comment_ids: List[str]
+
 def get_comment_analysis_agent_instructions(
     post_settings_data: dict = None,
 ) -> str:
@@ -552,6 +555,64 @@ async def get_comments(
         raise HTTPException(
             status_code=500,
             detail=f"Failed to fetch comments: {str(e)}"
+        )
+    finally:
+        conn.close()
+
+@router.delete("/comments")
+async def delete_comments(request: DeleteCommentsRequest):
+    """
+    Delete multiple comments.
+    
+    Parameters:
+    - comment_ids: List of comment IDs to delete
+    """
+    if not request.comment_ids:
+        raise HTTPException(
+            status_code=400,
+            detail="No comment IDs provided"
+        )
+    
+    conn = get_connection()
+    try:
+        with conn.cursor() as cursor:
+            # Convert string IDs to integers
+            comment_ids = [int(id) for id in request.comment_ids]
+            
+            # Delete the comments
+            cursor.execute(
+                """
+                DELETE FROM comments_reply 
+                WHERE id = ANY(%s)
+                RETURNING id
+                """,
+                (comment_ids,)
+            )
+            
+            deleted_ids = cursor.fetchall()
+            conn.commit()
+            
+            if not deleted_ids:
+                raise HTTPException(
+                    status_code=404,
+                    detail="No comments found to delete"
+                )
+            
+            return {
+                "message": "Comments deleted successfully",
+                "deleted_ids": [row[0] for row in deleted_ids]
+            }
+            
+    except ValueError:
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid comment ID format. All IDs must be valid numbers."
+        )
+    except Exception as e:
+        conn.rollback()
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to delete comments: {str(e)}"
         )
     finally:
         conn.close()

@@ -78,6 +78,9 @@ class CommentGenerationOutput(BaseModel):
     tone_match_score: float
     context_relevance_score: float
 
+class DeletePostRepliesRequest(BaseModel):
+    reply_ids: List[str]
+
 def get_post_analysis_agent_instructions(
     post_settings_data: dict = None,
 ) -> str:
@@ -578,3 +581,64 @@ async def get_comments(
         )
     finally:
         conn.close()
+
+@router.delete("/post_replies")
+async def delete_post_replies(request: DeletePostRepliesRequest):
+    """
+    Delete multiple post replies.
+    
+    Parameters:
+    - reply_ids: List of reply IDs to delete
+    """
+    if not request.reply_ids:
+        raise HTTPException(
+            status_code=400,
+            detail="No reply IDs provided"
+        )
+    
+    conn = get_connection()
+    try:
+        with conn.cursor() as cursor:
+            # Convert string IDs to integers
+            reply_ids = [int(id) for id in request.reply_ids]
+            
+            # Delete the post replies
+            cursor.execute(
+                """
+                DELETE FROM post_reply 
+                WHERE id = ANY(%s)
+                RETURNING id
+                """,
+                (reply_ids,)
+            )
+            
+            deleted_ids = cursor.fetchall()
+            conn.commit()
+            
+            if not deleted_ids:
+                raise HTTPException(
+                    status_code=404,
+                    detail="No post replies found to delete"
+                )
+            
+            return {
+                "message": "Post replies deleted successfully",
+                "deleted_ids": [row[0] for row in deleted_ids]
+            }
+            
+    except ValueError:
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid reply ID format. All IDs must be valid numbers."
+        )
+    except Exception as e:
+        conn.rollback()
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to delete post replies: {str(e)}"
+        )
+    finally:
+        conn.close()
+        
+        
+        
