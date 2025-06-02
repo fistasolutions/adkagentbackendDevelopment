@@ -152,7 +152,6 @@ async def analyze_user(username: str, userId: int):
         try:
             user_id = await get_user_id(username)
             logger.info(f"Retrieved Twitter user ID: {user_id}")
-            
             end_time = datetime.datetime.utcnow()
             start_time = end_time - datetime.timedelta(days=7)
             start_time_str = start_time.strftime("%Y-%m-%dT%H:%M:%SZ")

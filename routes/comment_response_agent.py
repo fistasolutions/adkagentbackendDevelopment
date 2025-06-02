@@ -254,7 +254,6 @@ async def get_last_week_posts_and_comments(user_id: str, account_username: str) 
         conn.close()
 
 
-
 @router.post("/test-analyze-and-respond-comments")
 async def test_analyze_and_respond_to_comments(user_id:str,account_username:str):
     """Test endpoint with dummy data to analyze comments and generate responses."""
