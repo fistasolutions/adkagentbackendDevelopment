@@ -11,6 +11,7 @@ import random
 import logging
 from fastapi import APIRouter, HTTPException, Depends, Response
 from db.db import get_connection
+import json
 
 load_dotenv()
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
@@ -79,7 +80,9 @@ class TweetUpdateRequest(BaseModel):
 
 class TweetImageUpdateRequest(BaseModel):
     tweet_id: str
-    image_url: str
+    image_urls: List[str]
+
+
 class DeleteTweetRequest(BaseModel):
     tweet_id: str
 
@@ -768,15 +771,15 @@ async def update_tweet(request: TweetUpdateRequest):
 
 @router.put("/update-tweet-image")
 async def update_tweet_image(request: TweetImageUpdateRequest):
-    """Update the image URL of a tweet."""
+    """Append new image URLs to a tweet, avoiding duplicates."""
     try:
         conn = get_connection()
         try:
             with conn.cursor() as cursor:
-                # First check if the tweet exists
+                # First check if the tweet exists and get current images
                 cursor.execute(
                     """
-                    SELECT id
+                    SELECT id, "Image_url"
                     FROM posts 
                     WHERE id = %s
                     """,
@@ -787,7 +790,20 @@ async def update_tweet_image(request: TweetImageUpdateRequest):
                 if not tweet:
                     raise HTTPException(status_code=404, detail="Tweet not found")
 
-                # Update the image URL
+                current_images = tweet[1]
+                if current_images:
+                    try:
+                        if isinstance(current_images, str):
+                            current_images = json.loads(current_images)
+                    except Exception:
+                        current_images = []
+                else:
+                    current_images = []
+
+                # Append new images, avoiding duplicates
+                updated_images = list(dict.fromkeys(current_images + request.image_urls))
+
+                # Update the image URLs (as JSONB)
                 cursor.execute(
                     """
                     UPDATE posts 
@@ -795,17 +811,17 @@ async def update_tweet_image(request: TweetImageUpdateRequest):
                     WHERE id = %s
                     RETURNING id, "Image_url"
                     """,
-                    (request.image_url, request.tweet_id),
+                    (json.dumps(updated_images), request.tweet_id),
                 )
                 updated_tweet = cursor.fetchone()
 
                 conn.commit()
 
                 return {
-                    "message": "Tweet image updated successfully",
+                    "message": "Tweet images updated successfully",
                     "tweet": {
                         "id": updated_tweet[0],
-                        "image_url": updated_tweet[1],
+                        "image_urls": updated_tweet[1],
                     },
                 }
 
@@ -814,7 +830,7 @@ async def update_tweet_image(request: TweetImageUpdateRequest):
         except Exception as db_error:
             print(f"Database error: {str(db_error)}")
             raise HTTPException(
-                status_code=500, detail=f"Failed to update tweet image: {str(db_error)}"
+                status_code=500, detail=f"Failed to update tweet images: {str(db_error)}"
             )
         finally:
             conn.close()
@@ -822,8 +838,8 @@ async def update_tweet_image(request: TweetImageUpdateRequest):
     except HTTPException as he:
         raise he
     except Exception as e:
-        print(f"Error updating tweet image: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Failed to update tweet image: {str(e)}")
+        print(f"Error updating tweet images: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to update tweet images: {str(e)}")
     
     
 @router.delete("/delete-tweet")
