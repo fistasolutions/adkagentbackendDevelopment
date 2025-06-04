@@ -99,11 +99,15 @@ def get_tweet_agent_instructions(
     if user give any its language in the character settings, you have to write in that language. if not, write in japanese.
     these are the previous tweets:
     {previous_tweets}
-    these are the competitor data:
+    these are the ROLE MODELS data:
     {competitor_data}
+    **Role models" are reference accounts for learning about the overall worldview of an account and the atmosphere of its posts. It doesn't matter if the industry or genre doesn't match exactly. However, by getting inspiration from excellent accounts that have sympathy in different industries, you can establish a more familiar and memorable style of communication. They are used to learn how to improve the quality of your overall output, such as how to write sentences, the tone of your posts, and how to communicate with your followers.**
     
     **These are the Post Schedule Settings:
-    {post_settings_data}
+    Posting Days: {post_settings_data.get('posting_day') if post_settings_data else 'Not specified'} Posting days should follow strictly.
+    Posting Times: {post_settings_data.get('posting_time') if post_settings_data else 'Not specified'} Posting time should follow strictly. Time has to be same time as the post settings data.
+    Posting Frequency: {post_settings_data.get('posting_frequency') if post_settings_data else 'Not specified'}  Number of posts per day.
+    Pre-created Tweets: {post_settings_data.get('pre_created_tweets') if post_settings_data else 'Not specified'}  How many days in advance to generate posts .Range: 1-30 days     Example: If set to 7 days, the system generates posts for the next 7 days.If pre-created tweets is set to 0, then you have to generate 5 tweets for the next 7 days.
     
     IMPORTANT SCHEDULING RULES:
     1. You MUST schedule tweets ONLY on the days specified in posting_day
@@ -184,7 +188,9 @@ Content matching the following category(ies) was detected in the text:
     - Consider the character's typical posting patterns when suggesting scheduled times
     - Ensure all scheduled times are in the future relative to the current time ({datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")})
 
-    Your tweets should reflect this character's personality, tone, and style while maintaining professional standards."""
+    Your tweets should reflect this character's personality, tone, and style while maintaining professional standards.
+Role models" are reference accounts for learning about the overall worldview of an account and the atmosphere of its posts. It doesn't matter if the industry or genre doesn't match exactly. However, by getting inspiration from excellent accounts that have sympathy in different industries, you can establish a more familiar and memorable style of communication. They are used to learn how to improve the quality of your overall output, such as how to write sentences, the tone of your posts, and how to communicate with your followers.
+    """
     
     return full_instructions
 
@@ -193,8 +199,11 @@ tweet_agent = Agent(
     name="Tweet Agent",
     instructions=get_tweet_agent_instructions(),
     output_type=TweetsOutput,
-    
+    # context_manager=True,
+    # memory=,
 )
+
+
 
 trend_strategy_agent = Agent(
     name="Trend Strategy Agent",
@@ -292,6 +301,10 @@ comment_analyzer_agent = Agent(
 )
 
 
+
+
+
+
 async def get_previous_tweets(
     user_id: str, account_id: str, limit: int = 100
 ) -> List[str]:
@@ -307,6 +320,27 @@ async def get_previous_tweets(
                 AND account_id = %s 
                 ORDER BY created_at DESC 
                 LIMIT %s
+                """,
+                (user_id, account_id, limit),
+            )
+            previous_tweets = [row[0] for row in cursor.fetchall()]
+            return previous_tweets
+    finally:
+        conn.close()
+
+async def get_compititers_tweets(
+    user_id: str, account_id: str, limit: int = 100
+) -> List[str]:
+    """Get previously generated tweets for a user to avoid duplicates."""
+    conn = get_connection()
+    try:
+        with conn.cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT compititers_username, content
+                    FROM compititers_data 
+                    WHERE user_id = %s 
+                    AND account_id = %s
                 """,
                 (user_id, account_id, limit),
             )
@@ -368,10 +402,12 @@ async def generate_tweets(request: TweetRequest):
                 
                 cursor.execute(
                     """
-                    SELECT posting_day, posting_time, posting_frequency,posting_time
+                    SELECT posting_day, posting_time, posting_frequency,posting_time,pre_create
                     FROM persona_notify 
+
                     WHERE user_id = %s 
                     AND account_id = %s
+                    AND notify_type = 'post'
                     """,
                     (request.user_id, request.account_id),
                 )
@@ -388,13 +424,15 @@ async def generate_tweets(request: TweetRequest):
                 posting_time = post_settings[1]  # This is a JSON object
                 posting_frequency = post_settings[2]
                 posting_time = post_settings[3]
+                pre_created_tweets = post_settings[4]
                 
                 # Format post settings data for the agent
                 post_settings_data = {
                     "posting_day": posting_day,
                     "posting_time": posting_time,
                     "posting_frequency": posting_frequency,
-                    "posting_time": posting_time
+                    "posting_time": posting_time,
+                    "pre_created_tweets": pre_created_tweets
                 }
                 
                 current_time = datetime.utcnow()
@@ -426,7 +464,8 @@ async def generate_tweets(request: TweetRequest):
             character_settings[0], competitor_data, previous_tweets, post_settings_data
         )
         
-        run_result = await Runner.run(tweet_agent, input="generate 5 tweets")
+        print(f"You have to craete Tweets.How much tweets have to create it will describe in instrauction.You have to strictly follow instructions. create {post_settings_data.get('pre_created_tweets')} tweets")
+        run_result = await Runner.run(tweet_agent, input=f"You have to craete Tweets.How much tweets have to create it will describe in instrauction.You have to strictly follow instructions. create {post_settings_data.get('pre_created_tweets')} tweets")
         result = run_result.final_output
         
         if not isinstance(result, TweetsOutput):
@@ -435,10 +474,9 @@ async def generate_tweets(request: TweetRequest):
             raise HTTPException(
                 status_code=500, detail="Unexpected response format from Tweet Agent"
             )
-        if len(result.tweets) != 5:
-            raise HTTPException(status_code=500, detail="Expected exactly five tweets")
         
         # Save tweets to database
+        print(result.tweets)
         conn = get_connection()
         try:
             with conn.cursor() as cursor:
@@ -586,6 +624,10 @@ async def generate_tweets(request: TweetRequest):
             character_settings[0], competitor_data, previous_tweets, post_settings_data
         )
 
+        print("Tweet Agent Instructions:")
+        print(tweet_agent.instructions)
+        print("\n" + "="*80 + "\n")
+        
         run_result = await Runner.run(tweet_agent, input="generate 5 tweets")
         result = run_result.final_output
 
@@ -1016,6 +1058,10 @@ async def regenerate_unposted_tweets(request: TweetRequest):
         tweet_agent.instructions = get_tweet_agent_instructions(
             character_settings[0], competitor_data, previous_tweets, post_settings_data
         )
+        
+        print("Tweet Agent Instructions:")
+        print(tweet_agent.instructions)
+        print("\n" + "="*80 + "\n")
         
         run_result = await Runner.run(tweet_agent, input=f"generate {unposted_count} tweets")
         result = run_result.final_output
