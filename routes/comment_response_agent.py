@@ -8,6 +8,7 @@ from fastapi import APIRouter, HTTPException
 from db.db import get_connection
 import logging
 import json
+import random
 
 load_dotenv()
 
@@ -256,13 +257,38 @@ async def get_last_week_posts_and_comments(user_id: str, account_username: str) 
     finally:
         conn.close()
 
+async def get_template_text(user_id: str, account_id: str) -> Optional[List[str]]:
+    """Get template text from persona_notify if templates are enabled."""
+    conn = get_connection()
+    try:
+        with conn.cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT template_text, template_use
+                FROM persona_notify 
+                WHERE notify_type = 'commentReply'
+                AND user_id = %s 
+                AND account_id = %s
+                """,
+                (user_id, account_id),
+            )
+            result = cursor.fetchone()
+            
+            if result and result[1]:  # Check if template_use is True
+                try:
+                    return json.loads(result[0]) if result[0] else None
+                except json.JSONDecodeError:
+                    return None
+            return None
+    finally:
+        conn.close()
 
 @router.post("/test-analyze-and-respond-comments")
-async def test_analyze_and_respond_to_comments(user_id:str,account_username:str):
+async def test_analyze_and_respond_to_comments(user_id:str, account_username:str):
     """Test endpoint with dummy data to analyze comments and generate responses."""
     try:
         # Get unresponded comments
-        posts_with_comments = await get_last_week_posts_and_comments(user_id,account_username)
+        posts_with_comments = await get_last_week_posts_and_comments(user_id, account_username)
         if not posts_with_comments:
             return {"message": "No new comments requiring responses found"}
             
@@ -272,7 +298,7 @@ async def test_analyze_and_respond_to_comments(user_id:str,account_username:str)
         with conn.cursor() as cursor:
             cursor.execute(
                 """
-                SELECT posting_day, posting_time, posting_frequency,posting_time
+                SELECT posting_day, posting_time, posting_frequency, posting_time
                 FROM persona_notify 
                 WHERE notify_type = 'commentReply'
                 AND user_id = %s 
@@ -326,35 +352,47 @@ async def test_analyze_and_respond_to_comments(user_id:str,account_username:str)
         if not comments_to_respond:
             return {"message": "No comments requiring responses found"}
         
+        # Get template text if available
+        templates = await get_template_text(user_id, account_username)
+        
         # Generate responses for each comment
         responses = []
         conn = get_connection()
         try:
             with conn.cursor() as cursor:
                 for comment in comments_to_respond:
-                    # Generate response using response agent
-                    response_input = f"""Post Content: {comment.comment_text}
-                    Comment: {comment.comment_text}
-                    Comment Type: {comment.comment_type}
-                    Key Points: {', '.join(comment.key_points)}
-                    Tone: {comment.tone}
-                    Context: {comment.reason}
-                    Username: {comment.commentor_username}"""
+                    response_text = None
                     
-                    response_result = await Runner.run(
-                        comment_response_agent,
-                        input=response_input
-                    )
+                    if templates:
+                        # If templates exist, select the most relevant one
+                        # For now, randomly select a template (you can implement more sophisticated selection)
+                        response_text = random.choice(templates)
+                    else:
+                        # Generate response using response agent if no templates
+                        response_input = f"""Post Content: {comment.comment_text}
+                        Comment: {comment.comment_text}
+                        Comment Type: {comment.comment_type}
+                        Key Points: {', '.join(comment.key_points)}
+                        Tone: {comment.tone}
+                        Context: {comment.reason}
+                        Username: {comment.commentor_username}"""
+                        
+                        response_result = await Runner.run(
+                            comment_response_agent,
+                            input=response_input
+                        )
+                        
+                        # Handle the response output
+                        response_output = response_result.final_output
+                        if isinstance(response_output, str):
+                            response_output = json.loads(response_output)
+                        
+                        # Convert to ResponseOutput model
+                        if not isinstance(response_output, ResponseOutput):
+                            response_output = ResponseOutput(**response_output)
+                        
+                        response_text = response_output.response_text
                     
-                    # Handle the response output
-                    response_output = response_result.final_output
-                    if isinstance(response_output, str):
-                        response_output = json.loads(response_output)
-                    
-                    # Convert to ResponseOutput model
-                    if not isinstance(response_output, ResponseOutput):
-                        response_output = ResponseOutput(**response_output)
-                
                     # Generate X.com URL for the tweet
                     tweet_url = f"https://x.com/i/web/status/{comment.post_id}"
                     
@@ -372,7 +410,7 @@ async def test_analyze_and_respond_to_comments(user_id:str,account_username:str)
                             for reply in tweet["replies"]:
                                 if reply["username"] == comment.commentor_username and reply["text"] == comment.comment_text:
                                     reply["status"] = "responded"
-                                    reply["response"] = response_output.response_text
+                                    reply["response"] = response_text
                                     reply["scheduled_time"] = comment.scheduled_time
                                     break
                     
@@ -397,7 +435,7 @@ async def test_analyze_and_respond_to_comments(user_id:str,account_username:str)
                         RETURNING id
                         """,
                         (
-                            response_output.response_text,
+                            response_text,
                             20,
                             user_id,
                             account_username,
@@ -414,13 +452,13 @@ async def test_analyze_and_respond_to_comments(user_id:str,account_username:str)
                         "reply_id": reply_id,
                         "comment_id": comment.comment_id,
                         "post_id": comment.post_id,
-                        "response_text": response_output.response_text,
+                        "response_text": response_text,
                         "scheduled_time": comment.scheduled_time,
                         "priority": comment.response_priority,
-                        "engagement_score": response_output.engagement_score,
-                        "tone_match_score": response_output.tone_match_score,
-                        "context_relevance_score": response_output.context_relevance_score,
-                        "response_type": response_output.response_type,
+                        "engagement_score": 0.5 if templates else response_output.engagement_score,
+                        "tone_match_score": 0.5 if templates else response_output.tone_match_score,
+                        "context_relevance_score": 0.5 if templates else response_output.context_relevance_score,
+                        "response_type": "template" if templates else response_output.response_type,
                         "comment_type": comment.comment_type,
                         "key_points": comment.key_points,
                         "tone": comment.tone,

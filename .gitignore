@@ -1,1 +1,86 @@
 .env
+
+__pycache__/
+
+*.py[cod]
+*$py.class
+
+# C extensions
+*.so
+
+# Distribution / packaging
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual environment
+env/
+venv/
+ENV/
+.venv/
+.env/
+
+# PyInstaller
+*.manifest
+*.spec
+
+# Unit test / coverage reports
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
+
+# Pytest
+.pytest_cache/
+
+# mypy
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# IDEs and editors
+.vscode/
+.idea/
+*.sublime-workspace
+*.sublime-project
+
+# Logs and local data
+*.log
+*.sqlite3
+
+# dotenv
+.env
+.env.*
+
+# Docker
+*.pid
+docker-compose.override.yml
+
+# FastAPI static and media folders (optional)
+staticfiles/
+media/
+
+# Jupyter Notebooks (optional)
+.ipynb_checkpoints/
+
+# Pydantic-generated .json schema cache (optional)
+*.schema.json

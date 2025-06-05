@@ -114,7 +114,11 @@ async def temporary_posting_chat(request: PostingChatRequest):
     """
     chat_history = request.chat_list
     try:
-        agent_input = f"Conversation: {chat_history}"
+        agent_input = f"""You're an expert generating next reply/response of the conversation,reply must be according to previous chat.
+        Generate the an reply text nothing else, no other text be part of of response.
+        As chat is about generating textual tweets only, so don't mention about image, video or any graphic content. 
+        Only give reply text according the concept of textual tweets only.
+        Conversation: {chat_history}"""
         agent_result = await Runner.run(posting_request_agent, input=agent_input)
         agent_reply = agent_result.final_output if hasattr(agent_result, 'final_output') else str(agent_result)
         chat_history.append(agent_reply)

@@ -8,6 +8,7 @@ class EventTweetRequest(BaseModel):
     num_drafts: int
     prompt: str
     date: Optional[str] = None
+    character_settings: Optional[str] = None
 
 class EventTweetResponse(BaseModel):
     draft_tweets: List[str]
@@ -23,9 +24,9 @@ class EventTweetAgent:
             output_type=EventTweetResponse
         )
     
-    def _get_instructions(self) -> str:
+    def _get_instructions(self, character_settings: Optional[str] = None) -> str:
         """Generate agent instructions"""
-        return """You are a tweet generation assistant specialized in creating event-based tweets, with a focus on Japanese events and culture.
+        base_instructions = """You are a tweet generation assistant specialized in creating event-based tweets, with a focus on Japanese events and culture.
         
         Rules:
         1. Generate engaging and relevant tweets based on the provided prompt
@@ -52,6 +53,19 @@ class EventTweetAgent:
                 ...
             ]
         }"""
+        
+        if character_settings:
+            base_instructions += f"""
+
+        Additionally, you must follow these character-specific guidelines:
+        {character_settings}
+        - Show personality while staying within professional boundaries
+        - Consider the character's typical posting patterns
+        - Ensure all content aligns with the character's voice and style
+        - Maintain consistency with the character's established tone and approach
+        """
+        
+        return base_instructions
     
     def _get_event_info(self, date_str: Optional[str]) -> str:
         """Get information about events on the specified date"""
@@ -69,12 +83,16 @@ class EventTweetAgent:
         Get draft tweets based on events and prompt.
         
         Args:
-            request (EventTweetRequest): The request containing the number of drafts needed, prompt, and optional date
+            request (EventTweetRequest): The request containing the number of drafts needed, prompt, optional date, and optional character settings
             
         Returns:
             EventTweetResponse: The agent's response containing the draft tweets
         """
         try:
+            # Update agent instructions with character settings if provided
+            if request.character_settings:
+                self.agent.instructions = self._get_instructions(request.character_settings)
+            
             # Get event information if date is provided
             event_info = self._get_event_info(request.date)
             

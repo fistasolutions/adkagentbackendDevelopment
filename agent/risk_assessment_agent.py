@@ -89,6 +89,11 @@ class RiskAssessmentAgent:
         - 61-80: High risk, likely problematic
         - 81-100: Critical risk, content should be rejected
 
+Generate and display an explanatory message about why the Agent classified it as high risk and suggestions for improvement.
+Content matching the following category(ies) was detected in the text:
+Political Content / Religious Content / Gender and Sexual Orientation / Race and Ethnicity / Disasters, Incidents, and Accidents / Privacy and Personal Information / Animal Welfare and Environmental Issues / Medical and Health Topics / Labor and Economic Issues / Copyright and Intellectual Property
+       and also how to improve it in message
+       
         You must return a JSON object with this exact structure:
         {
             "overall_risk_score": int,  # 1-100
@@ -99,7 +104,7 @@ class RiskAssessmentAgent:
                     "reason": "string"
                 }
             ],
-            "risk_assignment": "string"  # One of: "safe", "review", "reject"
+            "risk_assignment": "message"  
         }"""
     
     async def get_response(self, request: RiskAssessmentRequest) -> RiskAssessmentResponse:

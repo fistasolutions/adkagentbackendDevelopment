@@ -93,112 +93,174 @@ class DeleteTweetImageRequest(BaseModel):
     image_urls: List[str]
 
 
+async def get_events(
+    user_id: str, 
+    account_id: str, 
+    limit: int = 10
+) -> List[dict]:
+    """Get upcoming events for a user and account."""
+    conn = get_connection()
+    try:
+        with conn.cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT event_title, event_details, event_datetime
+                FROM events 
+                WHERE user_id = %s 
+                AND account_id = %s 
+                AND event_datetime > NOW()
+                AND status = 'active'
+                ORDER BY event_datetime ASC 
+                LIMIT %s
+                """,
+                (user_id, account_id, limit),
+            )
+            events = [
+                {
+                    "title": row[0],
+                    "details": row[1],
+                    "datetime": row[2].strftime("%Y-%m-%dT%H:%M:%SZ")
+                }
+                for row in cursor.fetchall()
+            ]
+            return events
+    finally:
+        conn.close()
+
+async def get_post_requests(
+    user_id: str, 
+    account_id: str, 
+    limit: int = 10
+) -> List[dict]:
+    """Get post requests for a user and account."""
+    conn = get_connection()
+    try:
+        with conn.cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT request_id, chat_list, main_point, created_at
+                FROM posts_requests 
+                WHERE user_id = %s 
+                AND account_id = %s 
+                ORDER BY created_at DESC 
+                LIMIT %s
+                """,
+                (user_id, account_id, limit),
+            )
+            post_requests = [
+                {
+                    "request_id": row[0],
+                    "chat_list": row[1],
+                    "main_point": row[2],
+                    "created_at": row[3].strftime("%Y-%m-%dT%H:%M:%SZ")
+                }
+                for row in cursor.fetchall()
+            ]
+            return post_requests
+    finally:
+        conn.close()
+
 def get_tweet_agent_instructions(
     character_settings: str = None,
     competitor_data: List[str] = None,
     previous_tweets: List[str] = None,
     post_settings_data: dict = None,
+    events: List[dict] = None,
+    post_requests: List[dict] = None,
 ) -> str:
-    base_instructions = f"""You are a professional tweet generation expert specializing in creating natural, human-like content with an educated perspective. Your role is to:
-    1. Generate EXACTLY FIVE unique, natural-sounding tweets that read as if written by an educated professional
-    **
-    if user give any its language in the character settings, you have to write in that language. if not, write in japanese.
-    these are the previous tweets:
-    {previous_tweets}
-    these are the ROLE MODELS data:
-    {competitor_data}
-    **Role models" are reference accounts for learning about the overall worldview of an account and the atmosphere of its posts. It doesn't matter if the industry or genre doesn't match exactly. However, by getting inspiration from excellent accounts that have sympathy in different industries, you can establish a more familiar and memorable style of communication. They are used to learn how to improve the quality of your overall output, such as how to write sentences, the tone of your posts, and how to communicate with your followers.**
-    
-    **These are the Post Schedule Settings:
-    Posting Days: {post_settings_data.get('posting_day') if post_settings_data else 'Not specified'} Posting days should follow strictly.
-    Posting Times: {post_settings_data.get('posting_time') if post_settings_data else 'Not specified'} Posting time should follow strictly. Time has to be same time as the post settings data.
-    Posting Frequency: {post_settings_data.get('posting_frequency') if post_settings_data else 'Not specified'}  Number of posts per day.
-    Pre-created Tweets: {post_settings_data.get('pre_created_tweets') if post_settings_data else 'Not specified'}  How many days in advance to generate posts .Range: 1-30 days     Example: If set to 7 days, the system generates posts for the next 7 days.If pre-created tweets is set to 0, then you have to generate 5 tweets for the next 7 days.
-    
-    IMPORTANT SCHEDULING RULES:
-    1. You MUST schedule tweets ONLY on the days specified in posting_day
-    2. You MUST schedule tweets ONLY within the time ranges specified in posting_time
-    3. The posting_frequency indicates how many posts should be made per day
-    4. All scheduled times must be in the future relative to the current time ({datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")})
-    5. Distribute the tweets across the specified posting days and times
-    
-    you have to avoid repeating the same content as the previous tweets.
-    Analyze the previous tweets and the competitor data and generate tweets that are unique and engaging.
-    **
-    2. Each tweet must follow these guidelines:
-       - Write in a natural, conversational tone while maintaining professionalism
-       - Include personal insights and observations that feel authentic
-       - Use appropriate contractions and natural language patterns
-       - Include only verified facts and truthful information
-       - Avoid emotionally charged or provocative content
-       - Never spread misinformation or unverified claims
-       - Include relevant hashtags (2-3 per tweet)
-       - Maintain optimal length (240-280 characters)
-       - Use clear, professional call-to-actions
-       - Base content on verifiable data and statistics
-    3. Content must be:
-       - Natural and conversational while remaining professional
-       - Factually accurate and verifiable
-       - Professional and business-appropriate
-       - Focused on industry insights and developments
-       - Based on objective analysis rather than emotional appeal
-       - Respectful and inclusive
-       - Include personal perspective where appropriate
-    4. Writing style should:
-       - Sound like an educated professional sharing insights
-       - Use natural language patterns and occasional contractions
-       - Include personal observations and experiences
-       - Maintain a balance between professional and approachable
-    5. For each tweet, suggest an optimal posting time based on:
-       - Content type (e.g., industry news, educational content, engagement posts)
-       - Target audience's timezone and activity patterns
-       - Day of the week (weekdays vs weekends)
-       - Current trends and peak engagement times
-    6. Risk score should be a number between 0 and 100.
-    If the risk is "Low":
-No content matching the following categories was detected in the text:
-Political Content / Religious Content / Gender and Sexual Orientation / Race and Ethnicity / Disasters, Incidents, and Accidents / Privacy and Personal Information / Animal Welfare and Environmental Issues / Medical and Health Topics / Labor and Economic Issues / Copyright and Intellectual Property
-If the risk is "High":
-Content matching the following category(ies) was detected in the text:
-[List of detected categories]
-       
-       - IMPORTANT: Schedule times must be in the future relative to the current time ({datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")})
-       - IMPORTANT: Schedule times according to the post settings data. The day of week mention in the post settings data is the day of the week when the tweet will be posted.
-    6. Return the tweets in the following JSON format:
-       {{
-         "tweets": [
-           {{
-             "tweet": "tweet text here",
-             "hashtags": ["hashtag1", "hashtag2"],
-             "risk_score": 15.5,
-             "reach_estimate": 5000,
-             "engagement_potential": 0.12,
-             "scheduled_time": "2024-03-21T10:00:00Z"  // Must be a future date/time
-           }},
-           ... (4 more tweets)
-         ],
-         "total_risk_score": 77.5,
-         "average_reach_estimate": 5000,
-         "overall_engagement_potential": 0.12
-       }}
-       """
-    
-    full_instructions = base_instructions
-    
-    if character_settings:
-        full_instructions += f"""
+    base_instructions = f"""You are a professional tweet generation expert specializing in creating natural, human-like content. Your role is to generate tweets that perfectly match the provided character settings while learning from successful role models.
 
-    Additionally, you must follow these character-specific guidelines:
+    **CHARACTER ANALYSIS AND ADAPTATION:**
     {character_settings}
-    - Show personality while staying within professional boundaries
-    - Consider the character's typical posting patterns when suggesting scheduled times
-    - Ensure all scheduled times are in the future relative to the current time ({datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")})
-
-    Your tweets should reflect this character's personality, tone, and style while maintaining professional standards.
-Role models" are reference accounts for learning about the overall worldview of an account and the atmosphere of its posts. It doesn't matter if the industry or genre doesn't match exactly. However, by getting inspiration from excellent accounts that have sympathy in different industries, you can establish a more familiar and memorable style of communication. They are used to learn how to improve the quality of your overall output, such as how to write sentences, the tone of your posts, and how to communicate with your followers.
+    
+    Analyze the character settings to understand:
+    1. Speech patterns and unique phrases
+    2. Personality traits and tone
+    3. Background story and context
+    4. Special abilities and interests
+    5. Language preferences and style
+    
+    **ROLE MODEL ANALYSIS:**
+    {competitor_data}
+    
+    Study the role models to understand:
+    1. Content themes and topics
+    2. Engagement patterns
+    3. Posting style and format
+    4. Hashtag usage
+    5. Media integration
+    6. Language patterns and tone
+    
+    **UPCOMING EVENTS:**
+    {events if events else "No upcoming events"}
+    
+    **POST REQUESTS:**
+    {post_requests if post_requests else "No post requests"}
+    
+    **POSTING SCHEDULE:**
+    {post_settings_data}
+    
+    **PREVIOUS CONTENT (AVOID DUPLICATION):**
+    {previous_tweets}
+    
+    GENERATION RULES:
+    1. Character Voice:
+       - MUST use the exact speech patterns from character settings
+       - MUST maintain the character's unique personality
+       - MUST incorporate character's special abilities and interests
+       - MUST use the specified language and tone
+    
+    2. Content Structure:
+       - Follow successful patterns from role models
+       - Include appropriate hashtags (2-3 per tweet)
+       - Maintain optimal length (240-280 characters)
+       - Include relevant emojis and media references
+       - Ensure content aligns with character's background
+       - Incorporate upcoming events when relevant
+       - Address post requests while maintaining character voice
+    
+    3. Engagement Optimization:
+       - Study role models' successful content patterns
+       - Incorporate trending topics when relevant
+       - Use engaging call-to-actions
+       - Maintain consistent posting schedule
+       - Create anticipation for upcoming events
+       - Consider post request topics and themes
+    
+    4. Risk Assessment:
+       - Evaluate content for potential risks
+       - Ensure alignment with character's values
+       - Avoid controversial topics
+       - Maintain brand safety
+    
+    5. Scheduling:
+       - Follow posting schedule strictly
+       - Distribute content across specified times
+       - Ensure all times are in the future
+       - Consider time zones and audience
+       - Plan content around event dates
+       - Prioritize time-sensitive post requests
+    
+    Return the tweets in the following JSON format:
+    {{
+        "tweets": [
+            {{
+                "tweet": "tweet text here",
+                "hashtags": ["hashtag1", "hashtag2"],
+                "risk_score": 15.5,
+                "reach_estimate": 5000,
+                "engagement_potential": 0.12,
+                "scheduled_time": "2024-03-21T10:00:00Z"
+            }},
+            ... (4 more tweets)
+        ],
+        "total_risk_score": 77.5,
+        "average_reach_estimate": 5000,
+        "overall_engagement_potential": 0.12
+    }}
     """
     
-    return full_instructions
+    return base_instructions
 
 
 tweet_agent = Agent(
@@ -465,13 +527,20 @@ async def generate_tweets(request: TweetRequest):
             conn.close()
 
         previous_tweets = await get_previous_tweets(request.user_id, request.account_id)
+        events = await get_events(request.user_id, request.account_id)
+        post_requests = await get_post_requests(request.user_id, request.account_id)
 
         tweet_agent.instructions = get_tweet_agent_instructions(
-            character_settings[0], competitor_data, previous_tweets, post_settings_data
+            character_settings[0], 
+            competitor_data, 
+            previous_tweets, 
+            post_settings_data,
+            events,
+            post_requests
         )
         
-        print(f"You have to craete Tweets.How much tweets have to create it will describe in instrauction.You have to strictly follow instructions. create {post_settings_data.get('pre_created_tweets')} tweets")
-        run_result = await Runner.run(tweet_agent, input=f"You have to craete Tweets.How much tweets have to create it will describe in instrauction.You have to strictly follow instructions. create {post_settings_data.get('pre_created_tweets')} tweets")
+        print(f"You have to create Tweets. How much tweets have to create it will describe in instruction. You have to strictly follow instructions. create {post_settings_data.get('pre_created_tweets')} tweets")
+        run_result = await Runner.run(tweet_agent, input=f"You have to create Tweets. How much tweets have to create it will describe in instruction. You have to strictly follow instructions. create {post_settings_data.get('pre_created_tweets')} tweets")
         result = run_result.final_output
         
         if not isinstance(result, TweetsOutput):
@@ -540,168 +609,6 @@ async def generate_tweets(request: TweetRequest):
             status_code=500, detail=f"Failed to generate tweets: {str(e)}"
         )
 
-@router.post("/generate-bulk-tweets", response_model=TweetsOutput)
-async def generate_tweets(request: TweetRequest):
-    """Generate five high-quality tweets using the Tweet Agent."""
-    print("Generating tweets...")
-    try:
-        # First check for character settings and get competitor data
-        conn = get_connection()
-        try:
-            with conn.cursor() as cursor:
-                # Check for character settings
-                cursor.execute(
-                    """
-                    SELECT character_settings 
-                    FROM personas 
-                    WHERE user_id = %s 
-                    AND account_id = %s
-                    """,
-                    (request.user_id, request.account_id),
-                )
-                character_settings = cursor.fetchone()
-
-                if not character_settings:
-                    raise HTTPException(
-                        status_code=400,
-                        detail="Character settings not found. Please set up your character settings before generating tweets.",
-                    )
-
-                cursor.execute(
-                    """
-                    SELECT compititers_username, content
-                    FROM compititers_data 
-                    WHERE user_id = %s 
-                    AND account_id = %s
-                    """,
-                    (request.user_id, request.account_id),
-                )
-                competitor_rows = cursor.fetchall()
-                competitor_data = [
-                    f"Username: {row[0]}, Content: {row[1]}"
-                    for row in competitor_rows
-                    if row[0] and row[1]
-                ]
-                
-                #
-                if not competitor_data:
-                    raise HTTPException(
-                        status_code=400,
-                        detail="Competitor data not found. Please set up your competitor data before generating tweets.",
-                    )
-                
-                cursor.execute(
-                    """
-                    SELECT posting_day, posting_time, posting_frequency,posting_time
-                    FROM persona_notify 
-                    WHERE user_id = %s 
-                    AND account_id = %s
-                    """,
-                    (request.user_id, request.account_id),
-                )
-                post_settings = cursor.fetchone()
-                
-                if not post_settings:
-                    raise HTTPException(
-                        status_code=400,
-                        detail="Post settings data not found. Please set up your post settings before generating tweets.",
-                    )
-                
-                # Parse the post settings
-                posting_day = post_settings[0]  # This is a JSON object
-                posting_time = post_settings[1]  # This is a JSON object
-                posting_frequency = post_settings[2]
-                posting_time = post_settings[3]
-                
-                # Format post settings data for the agent
-                post_settings_data = {
-                    "posting_day": posting_day,
-                    "posting_time": posting_time,
-                    "posting_frequency": posting_frequency,
-                    "posting_time": posting_time
-                }
-                
-        finally:
-            conn.close()
-
-        previous_tweets = await get_previous_tweets(request.user_id, request.account_id)
-
-        tweet_agent.instructions = get_tweet_agent_instructions(
-            character_settings[0], competitor_data, previous_tweets, post_settings_data
-        )
-
-        print("Tweet Agent Instructions:")
-        print(tweet_agent.instructions)
-        print("\n" + "="*80 + "\n")
-        
-        run_result = await Runner.run(tweet_agent, input="generate 5 tweets")
-        result = run_result.final_output
-
-        if not isinstance(result, TweetsOutput):
-            print(f"Unexpected response type: {type(result)}")
-            print(f"Response content: {result}")
-            raise HTTPException(
-                status_code=500, detail="Unexpected response format from Tweet Agent"
-            )
-        if len(result.tweets) != 5:
-            raise HTTPException(status_code=500, detail="Expected exactly five tweets")
-
-        # Save tweets to database
-        conn = get_connection()
-        try:
-            with conn.cursor() as cursor:
-                current_time = datetime.utcnow()
-
-                # Save each tweet as a separate row
-                saved_posts = []
-                for tweet in result.tweets:
-                    cursor.execute(
-                        """
-                        INSERT INTO posts (content, created_at, user_id, account_id, status, scheduled_time)
-                        VALUES (%s, %s, %s, %s, %s, %s)
-                        RETURNING id, content, created_at, status, scheduled_time
-                        """,
-                        (
-                            tweet.tweet,
-                            current_time,
-                            request.user_id,
-                            request.account_id,
-                            "unposted",
-                            tweet.scheduled_time,
-                        ),
-                    )
-                    post_data = cursor.fetchone()
-                    saved_posts.append(
-                        {
-                            "id": post_data[0],
-                            "content": post_data[1],
-                            "created_at": post_data[2],
-                            "status": post_data[3],
-                            "scheduled_time": post_data[4],
-                        }
-                    )
-
-                conn.commit()
-
-        except Exception as db_error:
-            print(f"Database error: {str(db_error)}")
-            raise HTTPException(
-                status_code=500,
-                detail=f"Failed to save tweets to database: {str(db_error)}",
-            )
-        finally:
-            conn.close()
-
-        print("Tweets generated and saved successfully")
-        return result
-    except HTTPException as he:
-        raise he
-    except Exception as e:
-        print(f"Error generating tweets: {str(e)}")
-        raise HTTPException(
-            status_code=500, detail=f"Failed to generate tweets: {str(e)}"
-        )
-
 
 @router.post("/analyze-comments", response_model=List[Dict[str, str]])
 async def analyze_comments(tweet_ids: List[str]):
@@ -743,7 +650,8 @@ async def update_tweet(request: TweetUpdateRequest):
         if request.content:
             risk_agent = RiskAssessmentAgent()
             risk_assessment = await risk_agent.get_response(RiskAssessmentRequest(content=request.content))
-
+            print(risk_assessment)
+        
         conn = get_connection()
         try:
             with conn.cursor() as cursor:
@@ -772,6 +680,13 @@ async def update_tweet(request: TweetUpdateRequest):
                     if risk_assessment:
                         update_fields.append("risk_score = %s")
                         update_values.append(risk_assessment.overall_risk_score)
+                        # Convert risk assessment to JSON string
+                        risk_assessment_json = json.dumps({
+                            "risk_categories": [category.dict() for category in risk_assessment.risk_categories],
+                            "risk_assignment": risk_assessment.risk_assignment
+                        })
+                        update_fields.append("risk_assesments = %s")
+                        update_values.append(risk_assessment_json)
 
                 if request.scheduled_time:
                     try:
@@ -793,7 +708,7 @@ async def update_tweet(request: TweetUpdateRequest):
                     UPDATE posts 
                     SET {', '.join(update_fields)}
                     WHERE id = %s
-                    RETURNING id, content, scheduled_time, risk_score
+                    RETURNING id, content, scheduled_time, risk_score, risk_assesments
                 """
 
                 cursor.execute(update_query, update_values)
@@ -801,19 +716,22 @@ async def update_tweet(request: TweetUpdateRequest):
 
                 conn.commit()
 
+                risk_assesments_value = updated_tweet[4]
+                if isinstance(risk_assesments_value, str):
+                    try:
+                        risk_assesments_value = json.loads(risk_assesments_value)
+                    except Exception:
+                        pass
                 response = {
                     "message": "Tweet updated successfully",
                     "tweet": {
                         "id": updated_tweet[0],
                         "content": updated_tweet[1],
                         "scheduled_time": updated_tweet[2],
-                        "risk_score": updated_tweet[3]
+                        "risk_score": updated_tweet[3],
+                        "risk_assesments": risk_assesments_value
                     }
                 }
-
-                # Add risk assessment details if content was updated
-                if risk_assessment:
-                    response["risk_assessment"] = risk_assessment.dict()
 
                 return response
 
@@ -1150,9 +1068,16 @@ async def regenerate_unposted_tweets(request: TweetRequest):
             conn.close()
 
         previous_tweets = await get_previous_tweets(request.user_id, request.account_id)
+        events = await get_events(request.user_id, request.account_id)
+        post_requests = await get_post_requests(request.user_id, request.account_id)
 
         tweet_agent.instructions = get_tweet_agent_instructions(
-            character_settings[0], competitor_data, previous_tweets, post_settings_data
+            character_settings[0], 
+            competitor_data, 
+            previous_tweets, 
+            post_settings_data,
+            events,
+            post_requests
         )
         
         print("Tweet Agent Instructions:")
