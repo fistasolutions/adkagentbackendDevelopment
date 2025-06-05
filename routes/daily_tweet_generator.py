@@ -12,6 +12,7 @@ import logging
 from fastapi import APIRouter, HTTPException, Depends, Response
 from db.db import get_connection
 import json
+from agent.risk_assessment_agent import RiskAssessmentAgent, RiskAssessmentRequest
 
 load_dotenv()
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
@@ -737,6 +738,12 @@ async def update_tweet(request: TweetUpdateRequest):
                 detail="At least one of content or scheduled_time must be provided",
             )
 
+        # Perform risk assessment if content is being updated
+        risk_assessment = None
+        if request.content:
+            risk_agent = RiskAssessmentAgent()
+            risk_assessment = await risk_agent.get_response(RiskAssessmentRequest(content=request.content))
+
         conn = get_connection()
         try:
             with conn.cursor() as cursor:
@@ -761,6 +768,10 @@ async def update_tweet(request: TweetUpdateRequest):
                 if request.content:
                     update_fields.append("content = %s")
                     update_values.append(request.content)
+                    # Add risk score if content is being updated
+                    if risk_assessment:
+                        update_fields.append("risk_score = %s")
+                        update_values.append(risk_assessment.overall_risk_score)
 
                 if request.scheduled_time:
                     try:
@@ -782,7 +793,7 @@ async def update_tweet(request: TweetUpdateRequest):
                     UPDATE posts 
                     SET {', '.join(update_fields)}
                     WHERE id = %s
-                    RETURNING id, content, scheduled_time
+                    RETURNING id, content, scheduled_time, risk_score
                 """
 
                 cursor.execute(update_query, update_values)
@@ -790,14 +801,21 @@ async def update_tweet(request: TweetUpdateRequest):
 
                 conn.commit()
 
-                return {
+                response = {
                     "message": "Tweet updated successfully",
                     "tweet": {
                         "id": updated_tweet[0],
                         "content": updated_tweet[1],
                         "scheduled_time": updated_tweet[2],
-                    },
+                        "risk_score": updated_tweet[3]
+                    }
                 }
+
+                # Add risk assessment details if content was updated
+                if risk_assessment:
+                    response["risk_assessment"] = risk_assessment.dict()
+
+                return response
 
         except HTTPException as he:
             raise he

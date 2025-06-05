@@ -1,6 +1,7 @@
 from fastapi import APIRouter, HTTPException
 from models.tweet_models import DraftTweetGenerationRequest, PostInsertRequest
 from agent.draft_tweet_agent import DraftTweetAgent, DraftTweetRequest, DraftTweetResponse
+from agent.risk_assessment_agent import RiskAssessmentAgent, RiskAssessmentRequest
 from db.db import get_connection
 
 router = APIRouter()
@@ -34,6 +35,10 @@ async def insert_post(request: PostInsertRequest):
     All fields are optional except content.
     """
     try:
+        # Perform risk assessment but don't block content
+        risk_agent = RiskAssessmentAgent()
+        risk_assessment = await risk_agent.get_response(RiskAssessmentRequest(content=request.content))
+        
         conn = get_connection()
         with conn.cursor() as cursor:
             # Build the dynamic SQL query based on provided fields
@@ -86,10 +91,10 @@ async def insert_post(request: PostInsertRequest):
                 values.append(request.image_url)
                 placeholders.append("%s")
             
-            if request.risk_score is not None:
-                fields.append("risk_score")
-                values.append(request.risk_score)
-                placeholders.append("%s")
+            # Add risk score from assessment
+            fields.append("risk_score")
+            values.append(risk_assessment.overall_risk_score)
+            placeholders.append("%s")
             
             if request.manual_time is not None:
                 fields.append("manual_time")
@@ -123,7 +128,8 @@ async def insert_post(request: PostInsertRequest):
                 "media_id": result[10],
                 "image_url": result[11],
                 "risk_score": result[12],
-                "manual_time": result[13]
+                "manual_time": result[13],
+                "risk_assessment": risk_assessment.dict()
             }
             
     except Exception as e:
