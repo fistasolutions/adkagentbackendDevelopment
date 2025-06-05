@@ -87,6 +87,11 @@ class DeleteTweetRequest(BaseModel):
     tweet_id: str
 
 
+class DeleteTweetImageRequest(BaseModel):
+    tweet_id: str
+    image_urls: List[str]
+
+
 def get_tweet_agent_instructions(
     character_settings: str = None,
     competitor_data: List[str] = None,
@@ -940,6 +945,79 @@ async def delete_tweet(request: DeleteTweetRequest):
         raise HTTPException(status_code=500, detail=f"Failed to delete tweet: {str(e)}")
 
 
+@router.delete("/delete-tweet-image")
+async def delete_tweet_image(request: DeleteTweetImageRequest):
+    """Delete specific image URLs from a tweet's Image_url field."""
+    try:
+        conn = get_connection()
+        try:
+            with conn.cursor() as cursor:
+                # First check if the tweet exists and get current images
+                cursor.execute(
+                    """
+                    SELECT id, "Image_url"
+                    FROM posts 
+                    WHERE id = %s
+                    """,
+                    (request.tweet_id,),
+                )
+                tweet = cursor.fetchone()
+
+                if not tweet:
+                    raise HTTPException(status_code=404, detail="Tweet not found")
+
+                current_images = tweet[1]
+                if current_images:
+                    try:
+                        if isinstance(current_images, str):
+                            current_images = json.loads(current_images)
+                    except Exception:
+                        current_images = []
+                else:
+                    current_images = []
+
+                # Remove the specified image URLs
+                updated_images = [url for url in current_images if url not in request.image_urls]
+
+                # Update the image URLs (as JSONB)
+                cursor.execute(
+                    """
+                    UPDATE posts 
+                    SET "Image_url" = %s
+                    WHERE id = %s
+                    RETURNING id, "Image_url"
+                    """,
+                    (json.dumps(updated_images), request.tweet_id),
+                )
+                updated_tweet = cursor.fetchone()
+
+                conn.commit()
+
+                return {
+                    "message": "Tweet images deleted successfully",
+                    "tweet": {
+                        "id": updated_tweet[0],
+                        "image_urls": updated_tweet[1],
+                    },
+                }
+
+        except HTTPException as he:
+            raise he
+        except Exception as db_error:
+            print(f"Database error: {str(db_error)}")
+            raise HTTPException(
+                status_code=500, detail=f"Failed to delete tweet images: {str(db_error)}"
+            )
+        finally:
+            conn.close()
+
+    except HTTPException as he:
+        raise he
+    except Exception as e:
+        print(f"Error deleting tweet images: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to delete tweet images: {str(e)}")
+
+
 @router.post("/regenerate-unposted-tweets", response_model=TweetsOutput)
 async def regenerate_unposted_tweets(request: TweetRequest):
     """Regenerate all unposted tweets for a user and account."""
@@ -1135,6 +1213,7 @@ async def regenerate_unposted_tweets(request: TweetRequest):
         raise HTTPException(
             status_code=500, detail=f"Failed to regenerate tweets: {str(e)}"
         )
+
 
 
 
