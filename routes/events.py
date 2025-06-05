@@ -12,18 +12,49 @@ async def generate_event_tweets(request: EventTweetGenerationRequest):
     Generate draft tweets based on events and prompt.
     
     Args:
-        request (EventTweetGenerationRequest): The request containing the number of drafts needed, prompt, and optional date
+        request (EventTweetGenerationRequest): The request containing the number of drafts needed, prompt, optional date, and optional event_id
         
     Returns:
         EventTweetResponse: The generated draft tweets
     """
     try:
+        # If event_id is provided, fetch event data
+        event_data = None
+        character_settings = None
+        
+        conn = get_connection()
+        try:
+            with conn.cursor() as cursor:
+                # Fetch character settings
+                cursor.execute("""
+                    SELECT character_settings 
+                    FROM personas 
+                    WHERE user_id = %s 
+                    AND account_id = %s
+                """, (request.user_id, request.account_id))
+                character_settings = cursor.fetchone()
+                
+                if not character_settings:
+                    raise HTTPException(
+                        status_code=400,
+                        detail="Character settings not found. Please set up your character settings before generating tweets."
+                    )
+                
+        finally:
+            conn.close()
+
+        # Initialize agent with event data if available
         agent = EventTweetAgent()
-        response = await agent.get_response(EventTweetRequest(
+        
+        # Create base request
+        tweet_request = EventTweetRequest(
             num_drafts=request.num_drafts,
             prompt=request.prompt,
-            date=request.date
-        ))
+            date=request.date,
+            character_settings=character_settings[0] if character_settings else None
+        )
+        
+        response = await agent.get_response(tweet_request)
         return response
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

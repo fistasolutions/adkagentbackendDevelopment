@@ -11,6 +11,8 @@ class EventTweetGenerationRequest(BaseModel):
     num_drafts: int
     prompt: str
     date: Optional[str] = None
+    user_id: str
+    account_id: str
 
 class PostInsertRequest(BaseModel):
     content: str
