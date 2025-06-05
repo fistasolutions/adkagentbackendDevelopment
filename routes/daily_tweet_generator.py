@@ -743,7 +743,8 @@ async def update_tweet(request: TweetUpdateRequest):
         if request.content:
             risk_agent = RiskAssessmentAgent()
             risk_assessment = await risk_agent.get_response(RiskAssessmentRequest(content=request.content))
-
+            print(risk_assessment)
+        
         conn = get_connection()
         try:
             with conn.cursor() as cursor:
@@ -772,6 +773,13 @@ async def update_tweet(request: TweetUpdateRequest):
                     if risk_assessment:
                         update_fields.append("risk_score = %s")
                         update_values.append(risk_assessment.overall_risk_score)
+                        # Convert risk assessment to JSON string
+                        risk_assessment_json = json.dumps({
+                            "risk_categories": [category.dict() for category in risk_assessment.risk_categories],
+                            "risk_assignment": risk_assessment.risk_assignment
+                        })
+                        update_fields.append("risk_assesments = %s")
+                        update_values.append(risk_assessment_json)
 
                 if request.scheduled_time:
                     try:
@@ -793,7 +801,7 @@ async def update_tweet(request: TweetUpdateRequest):
                     UPDATE posts 
                     SET {', '.join(update_fields)}
                     WHERE id = %s
-                    RETURNING id, content, scheduled_time, risk_score
+                    RETURNING id, content, scheduled_time, risk_score, risk_assesments
                 """
 
                 cursor.execute(update_query, update_values)
@@ -801,19 +809,22 @@ async def update_tweet(request: TweetUpdateRequest):
 
                 conn.commit()
 
+                risk_assesments_value = updated_tweet[4]
+                if isinstance(risk_assesments_value, str):
+                    try:
+                        risk_assesments_value = json.loads(risk_assesments_value)
+                    except Exception:
+                        pass
                 response = {
                     "message": "Tweet updated successfully",
                     "tweet": {
                         "id": updated_tweet[0],
                         "content": updated_tweet[1],
                         "scheduled_time": updated_tweet[2],
-                        "risk_score": updated_tweet[3]
+                        "risk_score": updated_tweet[3],
+                        "risk_assesments": risk_assesments_value
                     }
                 }
-
-                # Add risk assessment details if content was updated
-                if risk_assessment:
-                    response["risk_assessment"] = risk_assessment.dict()
 
                 return response
 

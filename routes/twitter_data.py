@@ -104,7 +104,7 @@ async def get_generated_tweets(user_id: int, account_id: int    ):
         with conn.cursor() as cursor:
             cursor.execute(
                 """
-                SELECT id, created_at, content, user_id, account_id, status,posted_id,scheduled_time,"Image_url",risk_score,recommended_time
+                SELECT id, created_at, content, user_id, account_id, status,posted_id,scheduled_time,"Image_url",risk_score,recommended_time,risk_assesments
                 FROM posts
                 WHERE user_id = %s AND account_id = %s
                 ORDER BY created_at DESC
@@ -126,7 +126,8 @@ async def get_generated_tweets(user_id: int, account_id: int    ):
                     "scheduled_time": row[7],
                     "Image_url": row[8],
                     "risk_score": row[9],
-                    "recommended_time": row[10]
+                    "recommended_time": row[10],
+                    "risk_assesments": row[11]
                 }
                 for row in results
             ]

@@ -39,6 +39,7 @@ async def insert_post(request: PostInsertRequest):
         risk_agent = RiskAssessmentAgent()
         risk_assessment = await risk_agent.get_response(RiskAssessmentRequest(content=request.content))
         
+        
         conn = get_connection()
         with conn.cursor() as cursor:
             # Build the dynamic SQL query based on provided fields
