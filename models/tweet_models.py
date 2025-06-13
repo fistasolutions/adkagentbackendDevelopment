@@ -27,6 +27,7 @@ class PostInsertRequest(BaseModel):
     image_url: Optional[str] = None
     risk_score: Optional[float] = None
     manual_time: Optional[datetime] = None
+    recommended_time: Optional[datetime] = None
 
 class EventInsertRequest(BaseModel):
     event_title: str

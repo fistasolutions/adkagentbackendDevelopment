@@ -2,6 +2,7 @@ from fastapi import APIRouter, HTTPException
 from models.tweet_models import DraftTweetGenerationRequest, PostInsertRequest
 from agent.draft_tweet_agent import DraftTweetAgent, DraftTweetRequest, DraftTweetResponse
 from agent.risk_assessment_agent import RiskAssessmentAgent, RiskAssessmentRequest
+from agent.scheduling_agent import SchedulingAgent, ScheduleRequest
 from db.db import get_connection
 
 router = APIRouter()
@@ -18,11 +19,25 @@ async def generate_draft_tweets(request: DraftTweetGenerationRequest):
         DraftTweetResponse: The generated draft tweets
     """
     try:
+        conn = get_connection()
+        with conn.cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT character_settings 
+                FROM personas 
+                WHERE user_id = %s 
+                AND account_id = %s
+                """,
+                (request.user_id, request.account_id),
+            )
+            character_settings = cursor.fetchone()
+        print(character_settings)
         agent = DraftTweetAgent()
         response = await agent.get_response(DraftTweetRequest(
             previous_tweet=request.previous_tweet,
             num_drafts=request.num_drafts,
-            prompt=request.prompt
+            prompt=request.prompt,
+            character_settings=character_settings[0] if character_settings else None
         ))
         return response
     except Exception as e:
@@ -39,7 +54,31 @@ async def insert_post(request: PostInsertRequest):
         risk_agent = RiskAssessmentAgent()
         risk_assessment = await risk_agent.get_response(RiskAssessmentRequest(content=request.content))
         
-        
+        print(request)
+        conn = get_connection()
+        with conn.cursor() as cursor:
+                cursor.execute(
+                    """
+                    SELECT posting_day, posting_time, posting_frequency,posting_time,pre_create,post_mode
+                    FROM persona_notify 
+
+                    WHERE user_id = %s 
+                    AND account_id = %s
+                    AND notify_type = 'post'
+                    """,
+                    (request.user_id, request.account_id),
+                )
+                post_settings = cursor.fetchone()
+
+        scheduling_agent = SchedulingAgent()
+        scheduling_response = await scheduling_agent.get_response(ScheduleRequest(
+            user_id=request.user_id,
+            account_id=request.account_id,
+            post_settings=post_settings,
+            content=request.content
+        ))
+       
+
         conn = get_connection()
         with conn.cursor() as cursor:
             # Build the dynamic SQL query based on provided fields
@@ -57,20 +96,28 @@ async def insert_post(request: PostInsertRequest):
                 values.append(request.account_id)
                 placeholders.append("%s")
             
-            if request.mode is not None:
-                fields.append("mode")
-                values.append(request.mode)
-                placeholders.append("%s")
+        
             
             if request.status is not None:
                 fields.append("status")
                 values.append(request.status)
                 placeholders.append("%s")
+
             
+
             if request.scheduled_time is not None:
                 fields.append("scheduled_time")
                 values.append(request.scheduled_time)
                 placeholders.append("%s")
+            if request.mode is None:
+                fields.append("recommended_time")
+                values.append(scheduling_response.scheduling_date)
+                placeholders.append("%s") 
+            else:       
+                if request.recommended_time is not None:
+                    fields.append("recommended_time")
+                    values.append(request.recommended_time)
+                    placeholders.append("%s")
             
             if request.posted_time is not None:
                 fields.append("posted_time")
@@ -106,7 +153,7 @@ async def insert_post(request: PostInsertRequest):
             query = f"""
                 INSERT INTO posts ({', '.join(fields)})
                 VALUES ({', '.join(placeholders)})
-                RETURNING id, content, user_id, account_id, mode, status, 
+                RETURNING id, content, user_id, account_id, status, 
                          scheduled_time, posted_time, created_at, posted_id, 
                          media_id, "Image_url", risk_score, manual_time
             """
@@ -120,16 +167,15 @@ async def insert_post(request: PostInsertRequest):
                 "content": result[1],
                 "user_id": result[2],
                 "account_id": result[3],
-                "mode": result[4],
-                "status": result[5],
-                "scheduled_time": result[6],
-                "posted_time": result[7],
-                "created_at": result[8],
-                "posted_id": result[9],
-                "media_id": result[10],
-                "image_url": result[11],
-                "risk_score": result[12],
-                "manual_time": result[13],
+                "status": result[4],
+                "scheduled_time": result[5],
+                "posted_time": result[6],
+                "created_at": result[7],
+                "posted_id": result[8],
+                "media_id": result[9],
+                "image_url": result[10],
+                "risk_score": result[11],
+                "manual_time": result[12],
                 "risk_assessment": risk_assessment.dict()
             }
             

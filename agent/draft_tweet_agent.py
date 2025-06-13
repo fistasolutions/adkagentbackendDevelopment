@@ -7,6 +7,7 @@ class DraftTweetRequest(BaseModel):
     previous_tweet: str
     num_drafts: int
     prompt: Optional[str] = None
+    character_settings: Optional[str] = None
 
 class DraftTweetResponse(BaseModel):
     draft_tweets: List[str]
@@ -22,9 +23,9 @@ class DraftTweetAgent:
             output_type=DraftTweetResponse
         )
     
-    def _get_instructions(self) -> str:
+    def _get_instructions(self, character_settings: Optional[str] = None) -> str:
         """Generate agent instructions"""
-        return """You are a tweet generation assistant. Your task is to generate tweets based on a previous tweet.
+        base_instructions = """You are a tweet generation assistant. Your task is to generate tweets based on a previous tweet.
         
         Rules:
         1. Analyze the previous tweet's style, tone, and content
@@ -43,18 +44,47 @@ class DraftTweetAgent:
                 ...
             ]
         }"""
+
+        if character_settings:
+            base_instructions += f"""
+
+        Additionally, you must follow these character-specific guidelines:
+        {character_settings}
+        
+        Character Voice Requirements:
+        1. MUST use the exact speech patterns from character settings
+        2. MUST maintain the character's unique personality
+        3. MUST incorporate character's special abilities and interests
+        4. MUST use the specified language and tone
+        5. MUST ensure content aligns with character's background
+        6. MUST maintain consistency with the character's established tone and approach
+        
+        Content Structure:
+        1. Follow the character's typical posting patterns
+        2. Include appropriate hashtags (2-3 per tweet)
+        3. Maintain optimal length (240-280 characters)
+        4. Include relevant emojis and media references
+        5. Ensure content aligns with character's background
+        6. Address any provided prompts while maintaining character voice
+        """
+        
+        return base_instructions
     
     async def get_response(self, request: DraftTweetRequest) -> DraftTweetResponse:
         """
         Get draft tweets based on the previous tweet.
         
         Args:
-            request (DraftTweetRequest): The request containing the previous tweet, number of drafts needed, and optional prompt
+            request (DraftTweetRequest): The request containing the previous tweet, number of drafts needed, optional prompt, and optional character settings
             
         Returns:
             DraftTweetResponse: The agent's response containing the draft tweets
         """
         try:
+            # Update agent instructions with character settings if provided
+            if request.character_settings:
+                self.agent.instructions = self._get_instructions(request.character_settings)
+            
             # Create the prompt for the agent
             prompt = f"""Previous tweet: {request.previous_tweet}
             Number of draft tweets needed: {request.num_drafts}"""
