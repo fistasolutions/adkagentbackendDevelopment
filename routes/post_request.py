@@ -140,6 +140,7 @@ summary_agent = Agent(
     Your task is to analyze the conversation history and create a brief summary in 20 words or less.
     Focus on the main topic, key points, and any specific requests or preferences mentioned.
     Return only the summary text, nothing else.
+    If user mention anything irrelevant to the conversation then you have to ignore it and give the summary of the remaining conversation. i.e "test" is message that is irrelevant to the conversation so you have to ignore it and give the summary of the remaining conversation.
     """,
     output_type=str
 )
