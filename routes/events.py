@@ -59,10 +59,10 @@ async def generate_event_tweets(request: EventTweetGenerationRequest):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
  
-@router.post("/insert-event", response_model=EventAndPostResponse)
+@router.post("/insert-event", response_model=dict)
 async def insert_event(request: EventInsertRequest):
     """
-    Insert a new event into the events table and generate a tweet for it.
+    Insert a new event into the events table.
     All fields are optional except event_title, event_datetime, and account_id.
     """
     try:
@@ -98,43 +98,6 @@ async def insert_event(request: EventInsertRequest):
             
             cursor.execute(event_query, tuple(values))
             event_result = cursor.fetchone()
-            event_id = event_result[0]
-            
-            # Generate tweet using the agent
-            agent = EventBasedTweetAgent()
-            tweet_response = await agent.get_response(EventBasedTweetRequest(
-                event_title=request.event_title,
-                event_details=request.event_details or ""
-            ))
-            
-            # Insert the generated tweet
-            post_query = """
-                INSERT INTO posts (content, user_id, account_id, status, created_at, scheduled_time)
-                VALUES (%s, %s, %s, %s, NOW(), %s)
-                RETURNING *
-            """
-            
-            cursor.execute(post_query, (
-                tweet_response.tweet_content,
-                request.user_id,
-                request.account_id,
-                "unposted",
-                request.event_datetime
-            ))
-            post_result = cursor.fetchone()
-            
-            # Get column names for the posts table
-            cursor.execute("""
-                SELECT column_name 
-                FROM information_schema.columns 
-                WHERE table_name = 'posts' 
-                ORDER BY ordinal_position
-            """)
-            post_columns = [col[0] for col in cursor.fetchall()]
-            
-            # Convert post_result tuple to dictionary
-            post_dict = dict(zip(post_columns, post_result))
-            
             conn.commit()
             
             return {
@@ -147,10 +110,8 @@ async def insert_event(request: EventInsertRequest):
                     "user_id": event_result[5],
                     "account_id": event_result[6],
                     "status": event_result[7]
-                },
-                "post": post_dict
+                }
             }
-            
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
     finally:
