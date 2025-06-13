@@ -470,7 +470,7 @@ async def generate_tweets(request: TweetRequest):
                 
                 cursor.execute(
                     """
-                    SELECT posting_day, posting_time, posting_frequency,posting_time,pre_create
+                    SELECT posting_day, posting_time, posting_frequency,posting_time,pre_create,post_mode
                     FROM persona_notify 
 
                     WHERE user_id = %s 
@@ -493,6 +493,7 @@ async def generate_tweets(request: TweetRequest):
                 posting_frequency = post_settings[2]
                 posting_time = post_settings[3]
                 pre_created_tweets = post_settings[4]
+                post_mode = post_settings[5]
                 
                 # Format post settings data for the agent
                 post_settings_data = {
@@ -562,9 +563,9 @@ async def generate_tweets(request: TweetRequest):
                 for tweet in result.tweets:
                     cursor.execute(
                         """
-                        INSERT INTO posts (content, created_at, user_id, account_id, status, scheduled_time,risk_score)
-                        VALUES (%s, %s, %s, %s, %s, %s,%s)
-                        RETURNING id, content, created_at, status, scheduled_time,risk_score
+                        INSERT INTO posts (content, created_at, user_id, account_id, status, scheduled_time,risk_score,recommended_time)
+                        VALUES (%s, %s, %s, %s, %s, %s,%s,%s)
+                        RETURNING id, content, created_at, status, scheduled_time,risk_score,recommended_time
                         """,
                         (
                             tweet.tweet,
@@ -572,8 +573,9 @@ async def generate_tweets(request: TweetRequest):
                             request.user_id,
                             request.account_id,
                             "unposted",
-                            tweet.scheduled_time,
+                            tweet.scheduled_time if post_mode == "TRUE" else None,
                             tweet.risk_score,
+                            None if post_mode == "TRUE" else tweet.scheduled_time,
                         ),
                     )
                     post_data = cursor.fetchone()
@@ -1110,9 +1112,9 @@ async def regenerate_unposted_tweets(request: TweetRequest):
                 for tweet in result.tweets:
                     cursor.execute(
                         """
-                        INSERT INTO posts (content, created_at, user_id, account_id, status, scheduled_time,risk_score)
-                        VALUES (%s, %s, %s, %s, %s, %s,%s)
-                        RETURNING id, content, created_at, status, scheduled_time,risk_score
+                        INSERT INTO posts (content, created_at, user_id, account_id, status, scheduled_time,risk_score,recommended_time)
+                        VALUES (%s, %s, %s, %s, %s, %s,%s,%s)
+                        RETURNING id, content, created_at, status, scheduled_time,risk_score,recommended_time
                         """,
                         (
                             tweet.tweet,
@@ -1120,8 +1122,9 @@ async def regenerate_unposted_tweets(request: TweetRequest):
                             request.user_id,
                             request.account_id,
                             "unposted",
-                            tweet.scheduled_time,
+                            tweet.scheduled_time if post_mode == "TRUE" else None,
                             tweet.risk_score,
+                            None if post_mode == "TRUE" else tweet.scheduled_time,
                         ),
                     )
                     post_data = cursor.fetchone()
