@@ -6,6 +6,8 @@ class DraftTweetGenerationRequest(BaseModel):
     previous_tweet: str
     num_drafts: int
     prompt: Optional[str] = None
+    user_id: int
+    account_id: int
 
 class EventTweetGenerationRequest(BaseModel):
     num_drafts: int
