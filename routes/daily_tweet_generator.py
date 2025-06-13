@@ -560,6 +560,7 @@ async def generate_tweets(request: TweetRequest):
                 
                 # Save each tweet as a separate row
                 saved_posts = []
+                print("post_mode",post_mode)
                 for tweet in result.tweets:
                     cursor.execute(
                         """
@@ -573,9 +574,9 @@ async def generate_tweets(request: TweetRequest):
                             request.user_id,
                             request.account_id,
                             "unposted",
-                            tweet.scheduled_time if post_mode == "TRUE" else None,
+                            tweet.scheduled_time if str(post_mode).upper() == "TRUE" else None,
                             tweet.risk_score,
-                            None if post_mode == "TRUE" else tweet.scheduled_time,
+                            None if str(post_mode).upper() == "TRUE" else tweet.scheduled_time,
                         ),
                     )
                     post_data = cursor.fetchone()
@@ -1007,7 +1008,7 @@ async def regenerate_unposted_tweets(request: TweetRequest):
                 
                 cursor.execute(
                     """
-                    SELECT posting_day, posting_time, posting_frequency,posting_time
+                    SELECT posting_day, posting_time, posting_frequency,posting_time,post_mode
                     FROM persona_notify 
                     WHERE user_id = %s 
                     AND account_id = %s
@@ -1027,7 +1028,7 @@ async def regenerate_unposted_tweets(request: TweetRequest):
                 posting_time = post_settings[1]  # This is a JSON object
                 posting_frequency = post_settings[2]
                 posting_time = post_settings[3]
-                
+                post_mode = post_settings[4]
                 # Format post settings data for the agent
                 post_settings_data = {
                     "posting_day": posting_day,
@@ -1122,9 +1123,9 @@ async def regenerate_unposted_tweets(request: TweetRequest):
                             request.user_id,
                             request.account_id,
                             "unposted",
-                            tweet.scheduled_time if post_mode == "TRUE" else None,
+                            tweet.scheduled_time if str(post_mode).upper() == "TRUE" else None,
                             tweet.risk_score,
-                            None if post_mode == "TRUE" else tweet.scheduled_time,
+                            None if str(post_mode).upper() == "TRUE" else tweet.scheduled_time,
                         ),
                     )
                     post_data = cursor.fetchone()
