@@ -6,6 +6,7 @@ from dotenv import load_dotenv
 from pydantic import BaseModel
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi import FastAPI
+from agent.risk_assessment_agent import RiskAssessmentAgent, RiskAssessmentRequest
 from db.db import get_connection
 import json
 from datetime import datetime
@@ -59,6 +60,11 @@ class HashtagRequest(BaseModel):
 class DeleteTweetImageRequest(BaseModel):
     tweet_id: str
     image_urls: List[str]
+    
+class TweetUpdateRequest(BaseModel):
+    tweet_id: str
+    content: Optional[str] = None
+    scheduled_time: Optional[str] = None   
     
 def fetch_tweets_for_hashtag(hashtag: str, max_results: int = 10) -> List[dict]:
     """Fetch tweets for a single hashtag using X API."""
@@ -590,3 +596,103 @@ async def delete_post_comment_image(request: DeleteTweetImageRequest):
     except Exception as e:
         print(f"Error deleting tweet images: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Failed to delete tweet images: {str(e)}")
+
+
+
+@router.put("/update-post-comment")
+async def update_post_comment(request: TweetUpdateRequest):
+    """Update the content or scheduled time of a tweet."""
+    try:
+        if not request.content and not request.scheduled_time:
+            raise HTTPException(
+                status_code=400,
+                detail="At least one of content or scheduled_time must be provided",
+            )
+
+        # Perform risk assessment if content is being updated
+        risk_assessment = None
+        if request.content:
+            risk_agent = RiskAssessmentAgent()
+            risk_assessment = await risk_agent.get_response(RiskAssessmentRequest(content=request.content))
+        
+        conn = get_connection()
+        try:
+            with conn.cursor() as cursor:
+                cursor.execute(
+                    """
+                    SELECT id
+                    FROM post_for_reply 
+                    WHERE id = %s
+                    """,
+                    (request.tweet_id,),
+                )
+                tweet = cursor.fetchone()
+
+                if not tweet:
+                    raise HTTPException(status_code=404, detail="Tweet not found")
+
+                # Prepare the update query based on provided fields
+                update_fields = []
+                update_values = []
+
+                if request.content:
+                    update_fields.append("reply_text = %s")
+                    update_values.append(request.content)
+                    if risk_assessment:
+                        update_fields.append("risk_score = %s")
+                        update_values.append(risk_assessment.overall_risk_score)
+
+                if request.scheduled_time:
+                    try:
+                        datetime.strptime(request.scheduled_time, "%Y-%m-%dT%H:%M:%SZ")
+                        update_fields.append("schedule_time = %s")
+                        update_values.append(request.scheduled_time)
+                    except ValueError:
+                        raise HTTPException(
+                            status_code=400,
+                            detail="Invalid scheduled_time format. Use ISO format: YYYY-MM-DDTHH:MM:SSZ",
+                        )
+
+                # Add tweet_id to the values list
+                update_values.append(request.tweet_id)
+
+                # Construct and execute the update query
+                update_query = f"""
+                    UPDATE post_for_reply 
+                    SET {', '.join(update_fields)}
+                    WHERE id = %s
+                    RETURNING id, reply_text, schedule_time, risk_score
+                """
+
+                cursor.execute(update_query, update_values)
+                updated_tweet = cursor.fetchone()
+
+                conn.commit()
+
+                response = {
+                    "message": "Tweet updated successfully",
+                    "tweet": {
+                        "id": updated_tweet[0],
+                        "content": updated_tweet[1],
+                        "schedule_time": updated_tweet[2],
+                        "risk_score": updated_tweet[3]
+                    }
+                }
+
+                return response
+
+        except HTTPException as he:
+            raise he
+        except Exception as db_error:
+            print(f"Database error: {str(db_error)}")
+            raise HTTPException(
+                status_code=500, detail=f"Failed to update tweet: {str(db_error)}"
+            )
+        finally:
+            conn.close()
+
+    except HTTPException as he:
+        raise he
+    except Exception as e:
+        print(f"Error updating tweet: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to update tweet: {str(e)}")
