@@ -10,8 +10,15 @@ from db.db import get_connection
 import json
 from datetime import datetime
 from agent.reply_generation_agent import generate_reply, ReplyGenerationRequest
+from requests_oauthlib import OAuth1Session
 
 load_dotenv()
+
+# Twitter API credentials
+TWITTER_API_KEY = os.getenv('TWITTER_API_KEY')
+TWITTER_API_SECRET = os.getenv('TWITTER_API_SECRET')
+TWITTER_ACCESS_TOKEN = os.getenv('TWITTER_ACCESS_TOKEN')
+TWITTER_ACCESS_TOKEN_SECRET = os.getenv('TWITTER_ACCESS_TOKEN_SECRET')
 
 router = APIRouter()
 
@@ -327,6 +334,100 @@ async def cron_fetch_hashtag_tweets():
         
     except Exception as e:
         print(f"Unexpected error in cron_fetch_hashtag_tweets: {str(e)}")
+        return {'results': [], 'message': f'Error: {str(e)}'}
+    finally:
+        if conn:
+            try:
+                conn.close()
+            except Exception as e:
+                print(f"Error closing connection: {str(e)}")
+
+@router.get("/cron/post-scheduled-replies")
+async def post_scheduled_replies():
+    """Cron job endpoint to post scheduled replies to Twitter."""
+    conn = None
+    try:
+        conn = get_connection()
+        results = []
+        
+        with conn.cursor() as cursor:
+            # Get all unposted replies where schedule time has passed
+            cursor.execute("""
+                SELECT pr.id, pr.tweet_id, pr.reply_text, pr.account_id
+                FROM post_for_reply pr
+                WHERE pr.post_status = 'unposted'
+                AND pr.schedule_time <= %s
+            """, (datetime.utcnow(),))
+            
+            scheduled_replies = cursor.fetchall()
+            
+            for reply_id, tweet_id, reply_text, account_id in scheduled_replies:
+                try:
+                    # Create OAuth 1.0a session
+                    oauth = OAuth1Session(
+                        TWITTER_API_KEY,
+                        client_secret=TWITTER_API_SECRET,
+                        resource_owner_key=TWITTER_ACCESS_TOKEN,
+                        resource_owner_secret=TWITTER_ACCESS_TOKEN_SECRET
+                    )
+                    
+                    # Prepare the request
+                    url = "https://api.twitter.com/2/tweets"
+                    data = {
+                        "text": reply_text,
+                        "reply": {
+                            "in_reply_to_tweet_id": tweet_id
+                        }
+                    }
+                    
+                    # Post the reply
+                    reply_response = oauth.post(
+                        url,
+                        json=data
+                    )
+                    
+                    if reply_response.status_code == 201:
+                        response_data = reply_response.json()
+                        posted_id = response_data.get('data', {}).get('id')
+                        
+                        # Update the database to mark as posted
+                        cursor.execute("""
+                            UPDATE post_for_reply
+                            SET post_status = 'posted',
+                                posted_id = %s
+                            WHERE id = %s
+                        """, (posted_id, reply_id))
+                        
+                        results.append({
+                            'reply_id': reply_id,
+                            'tweet_id': tweet_id,
+                            'status': 'success'
+                        })
+                    else:
+                        print(f"Error posting reply for tweet {tweet_id}: {reply_response.status_code}")
+                        results.append({
+                            'reply_id': reply_id,
+                            'tweet_id': tweet_id,
+                            'status': 'error',
+                            'error': reply_response.text
+                        })
+                        
+                except Exception as e:
+                    print(f"Error processing reply {reply_id}: {str(e)}")
+                    results.append({
+                        'reply_id': reply_id,
+                        'tweet_id': tweet_id,
+                        'status': 'error',
+                        'error': str(e)
+                    })
+                    continue
+        
+        if conn:
+            conn.commit()
+        return {'results': results, 'message': 'Successfully processed scheduled replies'}
+        
+    except Exception as e:
+        print(f"Unexpected error in post_scheduled_replies: {str(e)}")
         return {'results': [], 'message': f'Error: {str(e)}'}
     finally:
         if conn:
