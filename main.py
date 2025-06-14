@@ -25,6 +25,7 @@ from routes.comment_response_agent import router as comment_response_router
 from routes.comment_workflow import router as comment_workflow_router
 from routes.change_time import router as change_time_router
 from routes.post_reply import router as post_reply_router
+from routes.fetch_data_hastags import router as hashtag_router
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi import Body, Query
 from pydantic import BaseModel
@@ -84,6 +85,7 @@ app.include_router(comment_response_agent.router, prefix="/api")
 app.include_router(comment_workflow.router, prefix="/api")
 app.include_router(change_time_router, prefix="/api")
 app.include_router(post_reply_router, prefix="/api")
+app.include_router(hashtag_router, prefix="/api")
 
 
 class TweetGenerationRequest(BaseModel):
