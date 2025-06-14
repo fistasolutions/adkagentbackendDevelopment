@@ -182,10 +182,7 @@ def process_due_scheduled_tweets():
                 tweets_to_post = []
                 for row in scheduled_tweets:
                     tweet_id, content, user_id, account_id, scheduled_time = row
-                    if is_auto_post_enabled(user_id, account_id):
-                        tweets_to_post.append(row)
-                    else:
-                        print(f"[CRON] Auto post is disabled for user_id={user_id}, account_id={account_id}. Skipping tweet {tweet_id}.")
+                    tweets_to_post.append(row)
                 if tweets_to_post:
                     posted_count, failed_tweets = process_tweets(tweets_to_post)
                     print(f"[CRON] Posted {posted_count} scheduled tweets. {len(failed_tweets)} failed.")

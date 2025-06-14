@@ -693,8 +693,7 @@ async def update_tweet(request: TweetUpdateRequest):
 
                 if request.scheduled_time:
                     try:
-                        # Validate the scheduled time format
-                        datetime.strptime(request.scheduled_time, "%Y-%m-%dT%H:%M:%SZ")
+                    
                         update_fields.append("scheduled_time = %s")
                         update_values.append(request.scheduled_time)
                     except ValueError:
