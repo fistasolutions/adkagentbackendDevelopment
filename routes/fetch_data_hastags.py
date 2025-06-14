@@ -56,7 +56,10 @@ class HashtagsResponse(BaseModel):
 
 class HashtagRequest(BaseModel):
     hashtags: List[str]  # List of hashtags
-
+class DeleteTweetImageRequest(BaseModel):
+    tweet_id: str
+    image_urls: List[str]
+    
 def fetch_tweets_for_hashtag(hashtag: str, max_results: int = 10) -> List[dict]:
     """Fetch tweets for a single hashtag using X API."""
     try:
@@ -514,3 +517,76 @@ async def update_tweet_image(request:TweetImageUpdateRequest):
         print(f"Error updating tweet images: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Failed to update tweet images: {str(e)}")
     
+    
+    
+@router.delete("/delete-post-comment-image")
+async def delete_post_comment_image(request: DeleteTweetImageRequest):
+    """Delete specific image URLs from a tweet's Image_url field."""
+    try:
+        conn = get_connection()
+        try:
+            with conn.cursor() as cursor:
+                # First check if the tweet exists and get current images
+                cursor.execute(
+                    """
+                    SELECT id, image_urls
+                    FROM post_for_reply 
+                    WHERE id = %s
+                    """,
+                    (request.tweet_id,),
+                )
+                tweet = cursor.fetchone()
+
+                if not tweet:
+                    raise HTTPException(status_code=404, detail="Tweet not found")
+
+                current_images = tweet[1]
+                if current_images:
+                    try:
+                        if isinstance(current_images, str):
+                            current_images = json.loads(current_images)
+                    except Exception:
+                        current_images = []
+                else:
+                    current_images = []
+
+                # Remove the specified image URLs
+                updated_images = [url for url in current_images if url not in request.image_urls]
+
+                # Update the image URLs (as JSONB)
+                cursor.execute(
+                    """
+                    UPDATE post_for_reply 
+                    SET image_urls = %s
+                    WHERE id = %s
+                    RETURNING id, image_urls
+                    """,
+                    (json.dumps(updated_images), request.tweet_id),
+                )
+                updated_tweet = cursor.fetchone()
+
+                conn.commit()
+
+                return {
+                    "message": "Tweet images deleted successfully",
+                    "tweet": {
+                        "id": updated_tweet[0],
+                        "image_urls": updated_tweet[1],
+                    },
+                }
+
+        except HTTPException as he:
+            raise he
+        except Exception as db_error:
+            print(f"Database error: {str(db_error)}")
+            raise HTTPException(
+                status_code=500, detail=f"Failed to delete tweet images: {str(db_error)}"
+            )
+        finally:
+            conn.close()
+
+    except HTTPException as he:
+        raise he
+    except Exception as e:
+        print(f"Error deleting tweet images: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to delete tweet images: {str(e)}")
