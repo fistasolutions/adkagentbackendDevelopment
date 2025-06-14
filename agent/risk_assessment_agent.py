@@ -105,7 +105,10 @@ Political Content / Religious Content / Gender and Sexual Orientation / Race and
                 }
             ],
             "risk_assignment": "message"  
-        }"""
+        }
+
+        Important: All data in the output JSON (including category names, reasons, and risk_assignment) must be written in Japanese.
+        """
     
     async def get_response(self, request: RiskAssessmentRequest) -> RiskAssessmentResponse:
         """
