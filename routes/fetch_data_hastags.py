@@ -47,7 +47,10 @@ class HashtagResponse(BaseModel):
     hashtag: str
     tweet_count: int
     tweets: List[TweetResponse]
-
+class TweetImageUpdateRequest(BaseModel):
+    tweet_id: str
+    image_urls: List[str]
+    
 class HashtagsResponse(BaseModel):
     results: List[HashtagResponse]
 
@@ -289,9 +292,10 @@ async def cron_fetch_hashtag_tweets():
                                             user_id,
                                             reply_text,
                                             risk_score,
-                                            schedule_time
+                                            schedule_time,
+                                            author_profile
                                         )
-                                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                                     """, (
                                         datetime.utcnow(),
                                         tweet['id'],
@@ -301,7 +305,8 @@ async def cron_fetch_hashtag_tweets():
                                         user_id,
                                         reply.reply_text,
                                         reply.risk_score,
-                                        reply.schedule_time
+                                        reply.schedule_time,
+                                        tweet['user']['profile_image_url']
                                     ))
                                 except Exception as e:
                                     print(f"Error processing tweet {tweet['id']}: {str(e)}")
@@ -435,3 +440,77 @@ async def post_scheduled_replies():
                 conn.close()
             except Exception as e:
                 print(f"Error closing connection: {str(e)}")
+
+
+@router.put("/update-post-comment-image")
+async def update_tweet_image(request:TweetImageUpdateRequest):
+    """Append new image URLs to a tweet, avoiding duplicates."""
+    try:
+        conn = get_connection()
+        try:
+            with conn.cursor() as cursor:
+                # First check if the tweet exists and get current images
+                cursor.execute(
+                    """
+                    SELECT id, image_urls
+                    FROM post_for_reply 
+                    WHERE id = %s
+                    """,
+                    (request.tweet_id,),
+                )
+                tweet = cursor.fetchone()
+
+                if not tweet:
+                    raise HTTPException(status_code=404, detail="Tweet not found")
+
+                current_images = tweet[1]
+                if current_images:
+                    try:
+                        if isinstance(current_images, str):
+                            current_images = json.loads(current_images)
+                    except Exception:
+                        current_images = []
+                else:
+                    current_images = []
+
+                # Append new images, avoiding duplicates
+                updated_images = list(dict.fromkeys(current_images + request.image_urls))
+
+                # Update the image URLs (as JSONB)
+                cursor.execute(
+                    """
+                    UPDATE post_for_reply 
+                    SET image_urls = %s
+                    WHERE id = %s
+                    RETURNING id, image_urls
+                    """,
+                    (json.dumps(updated_images), request.tweet_id),
+                )
+                updated_tweet = cursor.fetchone()
+
+                conn.commit()
+
+                return {
+                    "message": "Tweet images updated successfully",
+                    "tweet": {
+                        "id": updated_tweet[0],
+                        "image_urls": updated_tweet[1],
+                    },
+                }
+
+        except HTTPException as he:
+            raise he
+        except Exception as db_error:
+            print(f"Database error: {str(db_error)}")
+            raise HTTPException(
+                status_code=500, detail=f"Failed to update tweet images: {str(db_error)}"
+            )
+        finally:
+            conn.close()
+
+    except HTTPException as he:
+        raise he
+    except Exception as e:
+        print(f"Error updating tweet images: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to update tweet images: {str(e)}")
+    

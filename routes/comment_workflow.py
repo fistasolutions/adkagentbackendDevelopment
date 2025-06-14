@@ -489,7 +489,9 @@ async def get_comments(
                     recommended_time,
                     post_status,
                     user_id,
-                    id
+                    id,
+                    author_profile,
+                    image_urls
                 FROM post_for_reply
                 WHERE account_id = %s
                 AND user_id = %s
@@ -539,7 +541,9 @@ async def get_comments(
                     "recommended_time": row[7].isoformat() if row[7] else None,
                     "post_status": row[8],
                     "user_id": row[9],
-                    "id": row[10]
+                    "id": row[10],
+                    "author_profile": row[11],
+                    "image_urls": row[12]
                 }
                 comments.append(comment)
             
