@@ -479,37 +479,29 @@ async def get_comments(
             # Build the base query
             query = """
                 SELECT 
-                    pr.id,
-                    pr.original_post_url,
-                    pr.user_id,
-                    pr.account_id,
-                    pr.competitor_username,
-                    pr.generated_comment,
-                    pr.tweet_id,
-                    pr.post_status,
-                    pr.schedule_time,
-                    pr.risk_score,
-                    pr.recommended_time,
-                    pr.tweet_text,
-                    pr.created_at,
-                    cd.content as original_post_content
-                FROM post_reply pr
-                LEFT JOIN compititers_data cd ON 
-                    cd.content::jsonb->'tweets'->0->>'tweet_id' = pr.tweet_id
-                    AND cd.user_id = pr.user_id
-                    AND cd.account_id = pr.account_id
-                WHERE pr.user_id = %s 
-                AND pr.account_id = %s
+                    tweet_id,
+                    text,
+                    post_username,
+                    account_id,
+                    reply_text,
+                    risk_score,
+                    schedule_time,
+                    recommended_time,
+                    post_status,
+                    user_id
+                FROM post_for_reply
+                WHERE account_id = %s
+                AND user_id = %s
             """
-            params = [user_id, account_id]
+            params = [account_id, user_id]
             
             # Add status filter if provided and not "all"
             if post_status and post_status.lower() != "all":
-                query += " AND pr.post_status = %s"
+                query += " AND post_status = %s"
                 params.append(post_status)
             
             # Add pagination
-            query += " ORDER BY pr.created_at DESC LIMIT %s OFFSET %s"
+            query += " ORDER BY schedule_time DESC LIMIT %s OFFSET %s"
             params.extend([limit, offset])
             
             # Execute the query
@@ -519,14 +511,14 @@ async def get_comments(
             # Get total count for pagination
             count_query = """
                 SELECT COUNT(*)
-                FROM post_reply pr
-                WHERE pr.user_id = %s 
-                AND pr.account_id = %s
+                FROM post_for_reply
+                WHERE account_id = %s
+                AND user_id = %s
             """
-            count_params = [user_id, account_id]
+            count_params = [account_id, user_id]
             
             if post_status and post_status.lower() != "all":
-                count_query += " AND pr.post_status = %s"
+                count_query += " AND post_status = %s"
                 count_params.append(post_status)
             
             cursor.execute(count_query, count_params)
@@ -535,32 +527,17 @@ async def get_comments(
             # Process the results
             comments = []
             for row in rows:
-                original_post_content = row[13]  # The content from compititers_data
-                if isinstance(original_post_content, str):
-                    try:
-                        original_post_content = json.loads(original_post_content)
-                    except json.JSONDecodeError:
-                        original_post_content = None
-
                 comment = {
-                    "id": row[0],
-                    "original_post_url": row[1],
-                    "user_id": row[2],
+                    "tweet_id": row[0],
+                    "text": row[1],
+                    "post_username": row[2],
                     "account_id": row[3],
-                    "competitor_username": row[4],
-                    "generated_comment": row[5],
-                    "tweet_id": row[6],
-                    "post_status": row[7],
-                    "schedule_time": row[8].isoformat() if row[8] else None,
-                    "risk_score": row[9],
-                    "recommended_time": row[10].isoformat() if row[10] else None,
-                    "tweet_text": row[11],
-                    "created_at": row[12].isoformat() if row[12] else None,
-                    "original_post": {
-                        "content": original_post_content,
-                        "tweet_text": original_post_content.get("tweets", [{}])[0].get("text", "") if original_post_content else "",
-                        "created_at": original_post_content.get("tweets", [{}])[0].get("created_at", "") if original_post_content else ""
-                    } if original_post_content else None
+                    "reply_text": row[4],
+                    "risk_score": row[5],
+                    "schedule_time": row[6].isoformat() if row[6] else None,
+                    "recommended_time": row[7].isoformat() if row[7] else None,
+                    "post_status": row[8],
+                    "user_id": row[9]
                 }
                 comments.append(comment)
             
