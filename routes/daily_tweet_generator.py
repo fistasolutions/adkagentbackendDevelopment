@@ -1,6 +1,6 @@
 from typing import Dict, List, Optional, Any
 from agents import Agent, Runner, function_tool
-from pydantic import BaseModel
+from pydantic import BaseModel, validator
 import os
 from dotenv import load_dotenv
 from datetime import datetime, timedelta
@@ -35,6 +35,11 @@ class TweetsOutput(BaseModel):
     total_risk_score: float
     average_reach_estimate: float
     overall_engagement_potential: float
+
+    @validator('tweets')
+    def validate_tweets_count(cls, v, values, **kwargs):
+        # Remove the validation that limits tweets to 5
+        return v
 
 
 class AnalysisOutput(BaseModel):
@@ -417,10 +422,122 @@ async def get_compititers_tweets(
     finally:
         conn.close()
 
+def get_next_scheduled_times(posting_days: dict, posting_time: dict, posting_frequency: int, pre_create: int) -> List[str]:
+    """
+    Generate a list of scheduled times for posts based on the given parameters.
+    
+    Args:
+        posting_days: Dict mapping days to boolean values (e.g., {"月": True, "火": False, ...})
+        posting_time: Dict mapping hours to boolean values (e.g., {"0": True, "1": False, ...})
+        posting_frequency: Number of posts per day
+        pre_create: Number of days in advance to schedule posts
+    
+    Returns:
+        List of ISO format datetime strings for scheduled posts
+    """
+    # Map Japanese day names to weekday numbers (0 = Monday, 6 = Sunday)
+    day_mapping = {
+        "月": 0, "火": 1, "水": 2, "木": 3, "金": 4, "土": 5, "日": 6
+    }
+    
+    # Get current time in UTC
+    current_time = datetime.utcnow()
+    
+    # Get enabled days (days marked as True)
+    enabled_days = [day for day, enabled in posting_days.items() if enabled]
+    if not enabled_days:
+        raise ValueError("No posting days are enabled")
+    print("enabled_days",enabled_days)
+    # Get enabled hours (hours marked as True)
+    enabled_hours = [int(hour) for hour, enabled in posting_time.items() if enabled]
+    if not enabled_hours:
+        raise ValueError("No posting hours are enabled")
+    
+    # Sort enabled hours
+    enabled_hours.sort()
+    
+    # Calculate total number of posts needed
+    total_posts = posting_frequency * pre_create
+    print("total_posts",total_posts)
+    scheduled_times = []
+    current_date = current_time.date()
+    
+    while len(scheduled_times) < total_posts:
+        # Check if current day is enabled
+        current_day_jp = ["月", "火", "水", "木", "金", "土", "日"][current_date.weekday()]
+        
+        if current_day_jp in enabled_days:
+            # For each enabled hour on this day
+            for hour in enabled_hours:
+                # Create datetime for this hour
+                post_time = datetime.combine(current_date, datetime.min.time().replace(hour=hour))
+                
+                # Only add if it's in the future
+                if post_time > current_time:
+                    scheduled_times.append(post_time.isoformat() + "Z")
+                    
+                    # If we have enough posts for today, break
+                    if len([t for t in scheduled_times if t.startswith(current_date.isoformat())]) >= posting_frequency:
+                        break
+        
+        # Move to next day
+        current_date += timedelta(days=1)
+    
+    # Sort and return the scheduled times
+    return sorted(scheduled_times)[:total_posts]
+
+def parse_pre_create_days(pre_create_str: str) -> int:
+    """
+    Parse the pre_create string from Japanese format (e.g., "7日") to an integer.
+    
+    Args:
+        pre_create_str: String in format like "7日"
+    
+    Returns:
+        Integer number of days
+    """
+    try:
+        # Remove the "日" character and convert to integer
+        return int(pre_create_str.replace("日", ""))
+    except (ValueError, AttributeError):
+        # If parsing fails, return a default value of 7
+        return 7
+
+def parse_posting_frequency(frequency_str: str) -> int:
+    """
+    Parse the posting frequency string (e.g., "1day") to an integer.
+    
+    Args:
+        frequency_str: String in format like "1day"
+    
+    Returns:
+        Integer number of posts per day
+    """
+    try:
+        # Remove the "day" suffix and convert to integer
+        return int(frequency_str.replace("day", ""))
+    except (ValueError, AttributeError):
+        # If parsing fails, return a default value of 1
+        return 1
+
+def clean_tweet_content(content: str) -> str:
+    """
+    Clean tweet content by removing null characters and other problematic characters.
+    
+    Args:
+        content: The original tweet content
+    
+    Returns:
+        Cleaned tweet content
+    """
+    if not content:
+        return ""
+    # Remove null characters and other control characters
+    return ''.join(char for char in content if ord(char) >= 32 or char in '\n\r\t')
 
 @router.post("/generate-daily-tweets", response_model=TweetsOutput)
 async def generate_tweets(request: TweetRequest):
-    """Generate five high-quality tweets using the Tweet Agent."""
+    """Generate tweets using the Tweet Agent."""
     print("Generating tweets...")
     try:
         # First check for character settings and get competitor data
@@ -490,10 +607,18 @@ async def generate_tweets(request: TweetRequest):
                 # Parse the post settings
                 posting_day = post_settings[0]  # This is a JSON object
                 posting_time = post_settings[1]  # This is a JSON object
-                posting_frequency = post_settings[2]
+                posting_frequency = parse_posting_frequency(post_settings[2])  # Parse frequency string
                 posting_time = post_settings[3]
-                pre_created_tweets = post_settings[4]
+                pre_created_tweets = parse_pre_create_days(post_settings[4])  # Parse Japanese format
                 post_mode = post_settings[5]
+                
+                # Get scheduled times based on settings
+                scheduled_times = get_next_scheduled_times(
+                    posting_day,
+                    posting_time,
+                    posting_frequency,
+                    pre_created_tweets
+                )
                 
                 # Format post settings data for the agent
                 post_settings_data = {
@@ -501,11 +626,12 @@ async def generate_tweets(request: TweetRequest):
                     "posting_time": posting_time,
                     "posting_frequency": posting_frequency,
                     "posting_time": posting_time,
-                    "pre_created_tweets": pre_created_tweets
+                    "pre_created_tweets": pre_created_tweets,
+                    "scheduled_times": scheduled_times
                 }
                 
                 current_time = datetime.utcnow()
-                thirty_minutes_ago = current_time - timedelta(minutes=30)
+                twenty_four_hours_ago = current_time - timedelta(hours=24)
                 
                 cursor.execute(
                     """
@@ -515,7 +641,7 @@ async def generate_tweets(request: TweetRequest):
                     AND account_id = %s 
                     AND created_at > %s
                     """,
-                    (request.user_id, request.account_id, thirty_minutes_ago),
+                    (request.user_id, request.account_id, twenty_four_hours_ago),
                 )
                 recent_tweets_count = cursor.fetchone()[0]
                 
@@ -531,6 +657,11 @@ async def generate_tweets(request: TweetRequest):
         events = await get_events(request.user_id, request.account_id)
         post_requests = await get_post_requests(request.user_id, request.account_id)
 
+        # Calculate total number of tweets needed
+        total_tweets_needed = posting_frequency * pre_created_tweets
+        print(f"Total tweets needed: {total_tweets_needed}")
+        
+        # Update the agent's instructions to specify the exact number of tweets needed
         tweet_agent.instructions = get_tweet_agent_instructions(
             character_settings[0], 
             competitor_data, 
@@ -540,8 +671,11 @@ async def generate_tweets(request: TweetRequest):
             post_requests
         )
         
-        print(f"You have to create Tweets. How much tweets have to create it will describe in instruction. You have to strictly follow instructions. create {post_settings_data.get('pre_created_tweets')} tweets")
-        run_result = await Runner.run(tweet_agent, input=f"You have to create Tweets. How much tweets have to create it will describe in instruction. You have to strictly follow instructions. create {post_settings_data.get('pre_created_tweets')} tweets")
+        # Generate tweets with explicit count
+        run_result = await Runner.run(
+            tweet_agent, 
+            input=f"Create exactly {total_tweets_needed} tweets. Each tweet must be unique and follow the character settings."
+        )
         result = run_result.final_output
         
         if not isinstance(result, TweetsOutput):
@@ -549,6 +683,13 @@ async def generate_tweets(request: TweetRequest):
             print(f"Response content: {result}")
             raise HTTPException(
                 status_code=500, detail="Unexpected response format from Tweet Agent"
+            )
+        
+        # Verify the number of tweets generated
+        if len(result.tweets) != total_tweets_needed:
+            raise HTTPException(
+                status_code=500,
+                detail=f"Expected {total_tweets_needed} tweets but got {len(result.tweets)}"
             )
         
         # Save tweets to database
@@ -560,8 +701,11 @@ async def generate_tweets(request: TweetRequest):
                 
                 # Save each tweet as a separate row
                 saved_posts = []
-                print("post_mode",post_mode)
-                for tweet in result.tweets:
+                print("post_mode", post_mode)
+                for i, tweet in enumerate(result.tweets):
+                    scheduled_time = scheduled_times[i] if i < len(scheduled_times) else None
+                    # Clean the tweet content before saving
+                    cleaned_content = clean_tweet_content(tweet.tweet)
                     cursor.execute(
                         """
                         INSERT INTO posts (content, created_at, user_id, account_id, status, scheduled_time,risk_score,recommended_time)
@@ -569,14 +713,14 @@ async def generate_tweets(request: TweetRequest):
                         RETURNING id, content, created_at, status, scheduled_time,risk_score,recommended_time
                         """,
                         (
-                            tweet.tweet,
+                            cleaned_content,
                             current_time,
                             request.user_id,
                             request.account_id,
                             "unposted",
-                            tweet.scheduled_time if str(post_mode).upper() == "TRUE" else None,
+                            scheduled_time if str(post_mode).upper() == "TRUE" else None,
                             tweet.risk_score,
-                            None if str(post_mode).upper() == "TRUE" else tweet.scheduled_time,
+                            None if str(post_mode).upper() == "TRUE" else scheduled_time,
                         ),
                     )
                     post_data = cursor.fetchone()
@@ -1025,7 +1169,7 @@ async def regenerate_unposted_tweets(request: TweetRequest):
                 # Parse the post settings
                 posting_day = post_settings[0]  # This is a JSON object
                 posting_time = post_settings[1]  # This is a JSON object
-                posting_frequency = post_settings[2]
+                posting_frequency = parse_posting_frequency(post_settings[2])  # Parse frequency string
                 posting_time = post_settings[3]
                 post_mode = post_settings[4]
                 # Format post settings data for the agent
