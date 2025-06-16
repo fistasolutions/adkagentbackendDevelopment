@@ -376,7 +376,7 @@ async def update_user_post_mode(user_id: int, account_id: int,notify_type:str, p
             
             if not updated_settings:
                 return []
-            
+            print("updated_settings", updated_settings)
             return [
                 {
                     "notify_id": setting[0],

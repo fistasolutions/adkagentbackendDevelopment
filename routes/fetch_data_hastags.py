@@ -9,7 +9,7 @@ from fastapi import FastAPI
 from agent.risk_assessment_agent import RiskAssessmentAgent, RiskAssessmentRequest
 from db.db import get_connection
 import json
-from datetime import datetime
+from datetime import datetime, timedelta
 from agent.reply_generation_agent import generate_reply, ReplyGenerationRequest
 from requests_oauthlib import OAuth1Session
 
@@ -65,6 +65,102 @@ class TweetUpdateRequest(BaseModel):
     tweet_id: str
     content: Optional[str] = None
     scheduled_time: Optional[str] = None   
+    
+    
+def get_next_scheduled_times(posting_days: dict, posting_time: dict, posting_frequency: int, pre_create: int) -> List[str]:
+    """
+    Generate a list of scheduled times for posts based on the given parameters.
+    
+    Args:
+        posting_days: Dict mapping days to boolean values (e.g., {"月": True, "火": False, ...})
+        posting_time: Dict mapping hours to boolean values (e.g., {"0": True, "1": False, ...})
+        posting_frequency: Number of posts per day
+        pre_create: Number of days in advance to schedule posts
+    
+    Returns:
+        List of ISO format datetime strings for scheduled posts
+    """
+    print("posting_days", posting_days)
+    print("posting_time", posting_time)
+    print("posting_frequency", posting_frequency)
+    print("pre_create", pre_create)
+    
+    from datetime import datetime, timedelta
+    # Map Japanese day names to weekday numbers (0 = Monday, 6 = Sunday)
+    jp_days = ["月", "火", "水", "木", "金", "土", "日"]
+    day_mapping = {day: i for i, day in enumerate(jp_days)}
+    
+    # Get current time in UTC
+    current_time = datetime.utcnow()
+    
+    # Get enabled days (days marked as True)
+    enabled_days = [day for day, enabled in posting_days.items() if enabled]
+    if not enabled_days:
+        raise ValueError("No posting days are enabled")
+    enabled_day_indexes = [day_mapping[day] for day in enabled_days]
+    
+    # Get enabled hours (hours marked as True)
+    enabled_hours = [int(hour) for hour, enabled in posting_time.items() if enabled]
+    if not enabled_hours:
+        raise ValueError("No posting hours are enabled")
+    enabled_hours.sort()
+    
+    total_posts = posting_frequency * pre_create
+    scheduled_times = []
+    current_date = current_time.date()
+    
+    while len(scheduled_times) < total_posts:
+        # Find the next enabled day
+        weekday_idx = current_date.weekday()
+        if weekday_idx not in enabled_day_indexes:
+            current_date += timedelta(days=1)
+            continue
+        # For this enabled day, schedule up to posting_frequency posts at enabled hours
+        posts_today = 0
+        for hour in enabled_hours:
+            if posts_today >= posting_frequency or len(scheduled_times) >= total_posts:
+                break
+            post_time = datetime.combine(current_date, datetime.min.time().replace(hour=hour))
+            if post_time > current_time:
+                scheduled_times.append(post_time.isoformat() + "Z")
+                posts_today += 1
+        current_date += timedelta(days=1)
+    return scheduled_times[:total_posts]
+
+def parse_pre_create_days(pre_create_str: str) -> int:
+    """
+    Parse the pre_create string from Japanese format (e.g., "7日") to an integer.
+    
+    Args:
+        pre_create_str: String in format like "7日"
+    
+    Returns:
+        Integer number of days
+    """
+    try:
+        # Remove the "日" character and convert to integer
+        return int(pre_create_str.replace("日", ""))
+    except (ValueError, AttributeError):
+        # If parsing fails, return a default value of 7
+        return 7
+
+def parse_posting_frequency(frequency_str: str) -> int:
+    """
+    Parse the posting frequency string (e.g., "1day") to an integer.
+    
+    Args:
+        frequency_str: String in format like "1day"
+    
+    Returns:
+        Integer number of posts per day
+    """
+    try:
+        # Remove the "day" suffix and convert to integer
+        return int(frequency_str.replace("day", ""))
+    except (ValueError, AttributeError):
+        # If parsing fails, return a default value of 1
+        return 1
+
     
 def fetch_tweets_for_hashtag(hashtag: str, max_results: int = 10) -> List[dict]:
     """Fetch tweets for a single hashtag using X API."""
@@ -217,6 +313,16 @@ async def cron_fetch_hashtag_tweets():
                         # Calculate total tweets needed and distribute across hashtags
                         total_tweets_needed = posting_frequency * pre_create
                         
+                        # Get scheduled times based on settings
+                        scheduled_times = get_next_scheduled_times(
+                            posting_day,
+                            posting_time,
+                            posting_frequency,
+                            pre_create
+                        )
+
+                        print("scheduled_times", scheduled_times)
+                        
                         # Ensure we fetch at least 10 tweets per hashtag (Twitter API requirement)
                         min_tweets_per_hashtag = 10
                         tweets_per_hashtag = max(min_tweets_per_hashtag, total_tweets_needed // len(hashtags))
@@ -273,7 +379,7 @@ async def cron_fetch_hashtag_tweets():
                                 user_id
                             ))
 
-                            for tweet in all_tweets:
+                            for i, tweet in enumerate(all_tweets):
                                 try:
                                     # Generate reply using the reply generation agent
                                     reply_request = ReplyGenerationRequest(
@@ -291,6 +397,9 @@ async def cron_fetch_hashtag_tweets():
                                     
                                     reply = await generate_reply(reply_request)
                                     
+                                    # Get scheduled time for this tweet
+                                    scheduled_time = scheduled_times[i] if i < len(scheduled_times) else None
+                                    
                                     cursor.execute("""
                                         INSERT INTO post_for_reply (
                                             created_at, 
@@ -302,9 +411,10 @@ async def cron_fetch_hashtag_tweets():
                                             reply_text,
                                             risk_score,
                                             schedule_time,
-                                            author_profile
+                                            author_profile,
+                                            recommended_time
                                         )
-                                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                                     """, (
                                         datetime.utcnow(),
                                         tweet['id'],
@@ -314,8 +424,9 @@ async def cron_fetch_hashtag_tweets():
                                         user_id,
                                         reply.reply_text,
                                         reply.risk_score,
-                                        reply.schedule_time,
-                                        tweet['user']['profile_image_url']
+                                        scheduled_time if str(post_mode).upper() == "TRUE" else None,
+                                        tweet['user']['profile_image_url'],
+                                        scheduled_time if str(post_mode).upper() == "FALSE" else None,
                                     ))
                                 except Exception as e:
                                     print(f"Error processing tweet {tweet['id']}: {str(e)}")
