@@ -139,8 +139,10 @@ summary_agent = Agent(
     You are an expert at summarizing conversations concisely.
     Your task is to analyze the conversation history and create a brief summary in 20 words or less.
     Focus on the main topic, key points, and any specific requests or preferences mentioned.
+    ONly summarizing th conversation when all necessary requirements have been clearly provided and understood for the post. If user mention anything irrelevant to the conversation then you have to ignore it and give the summary of the remaining conversation. i.e "test" is message that is irrelevant to the conversation so you have to ignore it and do not need to give summary of the conversation. leave it empty
     Return only the summary text, nothing else.
     If user mention anything irrelevant to the conversation then you have to ignore it and give the summary of the remaining conversation. i.e "test" is message that is irrelevant to the conversation so you have to ignore it and give the summary of the remaining conversation.
+    
     """,
     output_type=str
 )
@@ -149,12 +151,24 @@ summary_agent = Agent(
 async def temporary_posting_keep(request: PostingKeepRequest):
     """
     Generate a summary of the conversation, then save the chat history and summary to posts_requests table.
+    If the summary is empty, skip saving to database.
     """
     try:
         # Generate summary using the summary agent
         agent_input = f"Conversation history: {request.chat_list}"
         summary_result = await Runner.run(summary_agent, input=agent_input)
         summary = summary_result.final_output if hasattr(summary_result, 'final_output') else str(summary_result)
+        
+        # Skip database insertion if summary is empty
+        if not summary or summary.strip() == "":
+            return PostingRequestResponse(
+                request_id=0,
+                created_at=datetime.utcnow(),
+                account_id=request.account_id,
+                user_id=request.user_id,
+                chat_list=request.chat_list,
+                main_point=""
+            )
         
         conn = get_connection()
         with conn.cursor() as cursor:

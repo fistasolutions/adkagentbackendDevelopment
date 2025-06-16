@@ -3,6 +3,14 @@ from models.tweet_models import EventTweetGenerationRequest, EventInsertRequest,
 from agent.event_tweet_agent import EventTweetAgent, EventTweetRequest, EventTweetResponse
 from agent.event_based_tweet_agent import EventBasedTweetAgent, EventBasedTweetRequest
 from db.db import get_connection
+from typing import List, Optional
+from pydantic import BaseModel
+
+class EventUpdateRequest(BaseModel):
+    event_title: Optional[str] = None
+    event_details: Optional[str] = None
+    event_datetime: Optional[str] = None
+    status: Optional[str] = None
 
 router = APIRouter()
 
@@ -112,6 +120,146 @@ async def insert_event(request: EventInsertRequest):
                     "status": event_result[7]
                 }
             }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        if 'conn' in locals():
+            conn.close() 
+
+@router.get("/events", response_model=List[dict])
+async def get_events(user_id: Optional[int] = None, account_id: Optional[int] = None):
+    """
+    Get events based on user_id and account_id.
+    Both parameters are optional, but at least one must be provided.
+    
+    Args:
+        user_id (Optional[int]): The user ID to filter events
+        account_id (Optional[int]): The account ID to filter events
+        
+    Returns:
+        List[dict]: List of events matching the criteria
+    """
+    if user_id is None and account_id is None:
+        raise HTTPException(
+            status_code=400,
+            detail="At least one of user_id or account_id must be provided"
+        )
+    
+    try:
+        conn = get_connection()
+        with conn.cursor() as cursor:
+            query = """
+                SELECT id, event_title, event_details, event_datetime, 
+                       created_at, user_id, account_id, status
+                FROM events
+                WHERE 1=1
+            """
+            params = []
+            
+            if user_id is not None:
+                query += " AND user_id = %s"
+                params.append(user_id)
+            
+            if account_id is not None:
+                query += " AND account_id = %s"
+                params.append(account_id)
+            
+            query += " ORDER BY event_datetime DESC"
+            
+            cursor.execute(query, tuple(params))
+            events = cursor.fetchall()
+            
+            return [{
+                "id": event[0],
+                "event_title": event[1],
+                "event_details": event[2],
+                "event_datetime": event[3],
+                "created_at": event[4],
+                "user_id": event[5],
+                "account_id": event[6],
+                "status": event[7]
+            } for event in events]
+            
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        if 'conn' in locals():
+            conn.close() 
+
+@router.put("/events/{event_id}", response_model=dict)
+async def update_event(event_id: int, request: EventUpdateRequest):
+    """
+    Update an event by its ID.
+    All fields are optional - only provided fields will be updated.
+    
+    Args:
+        event_id (int): The ID of the event to update
+        request (EventUpdateRequest): The fields to update
+        
+    Returns:
+        dict: The updated event
+    """
+    try:
+        conn = get_connection()
+        with conn.cursor() as cursor:
+            # First check if event exists
+            cursor.execute("SELECT id FROM events WHERE id = %s", (event_id,))
+            if not cursor.fetchone():
+                raise HTTPException(status_code=404, detail="Event not found")
+            
+            # Build update query dynamically based on provided fields
+            update_fields = []
+            values = []
+            
+            if request.event_title is not None:
+                update_fields.append("event_title = %s")
+                values.append(request.event_title)
+            
+            if request.event_details is not None:
+                update_fields.append("event_details = %s")
+                values.append(request.event_details)
+            
+            if request.event_datetime is not None:
+                update_fields.append("event_datetime = %s")
+                values.append(request.event_datetime)
+            
+            if request.status is not None:
+                update_fields.append("status = %s")
+                values.append(request.status)
+            
+            if not update_fields:
+                raise HTTPException(
+                    status_code=400,
+                    detail="No fields provided for update"
+                )
+            
+            # Add event_id to values
+            values.append(event_id)
+            
+            # Update event
+            update_query = f"""
+                UPDATE events 
+                SET {', '.join(update_fields)}
+                WHERE id = %s
+                RETURNING id, event_title, event_details, event_datetime, 
+                         created_at, user_id, account_id, status
+            """
+            
+            cursor.execute(update_query, tuple(values))
+            updated_event = cursor.fetchone()
+            conn.commit()
+            
+            return {
+                "id": updated_event[0],
+                "event_title": updated_event[1],
+                "event_details": updated_event[2],
+                "event_datetime": updated_event[3],
+                "created_at": updated_event[4],
+                "user_id": updated_event[5],
+                "account_id": updated_event[6],
+                "status": updated_event[7]
+            }
+            
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
     finally:

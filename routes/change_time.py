@@ -101,12 +101,13 @@ async def update_posts_time(request: TimeUpdateRequest):
 async def update_post_reply_time(request: TimeUpdateRequest):
     """Update times in post_reply table based on type."""
     try:
+
         conn = get_connection()
         with conn.cursor() as cursor:
             if request.type:
                 # Set recommended_time into schedule_time, skip if schedule_time exists
                 cursor.execute("""
-                    UPDATE post_reply 
+                    UPDATE post_for_reply 
                     SET schedule_time = recommended_time
                     WHERE user_id = %s AND account_id = %s
                     AND schedule_time IS NULL
@@ -115,7 +116,7 @@ async def update_post_reply_time(request: TimeUpdateRequest):
             else:
                 # Move schedule_time to recommended_time and set schedule_time to NULL
                 cursor.execute("""
-                    UPDATE post_reply 
+                    UPDATE post_for_reply 
                     SET recommended_time = DATE(schedule_time),
                         schedule_time = NULL
                     WHERE user_id = %s AND account_id = %s

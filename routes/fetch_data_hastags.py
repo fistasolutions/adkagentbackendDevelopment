@@ -10,6 +10,7 @@ from agent.risk_assessment_agent import RiskAssessmentAgent, RiskAssessmentReque
 from db.db import get_connection
 import json
 from datetime import datetime, timedelta
+from datetime import datetime, timedelta
 from agent.reply_generation_agent import generate_reply, ReplyGenerationRequest
 from requests_oauthlib import OAuth1Session
 
@@ -371,6 +372,9 @@ async def cron_fetch_hashtag_tweets():
                                     
                                     reply = await generate_reply(reply_request)
                                     
+                                    # Get scheduled time for this tweet
+                                    scheduled_time = scheduled_times[i] if i < len(scheduled_times) else None
+                                    
                                     cursor.execute("""
                                         INSERT INTO post_for_reply (
                                             created_at, 
@@ -382,9 +386,10 @@ async def cron_fetch_hashtag_tweets():
                                             reply_text,
                                             risk_score,
                                             schedule_time,
-                                            author_profile
+                                            author_profile,
+                                            recommended_time
                                         )
-                                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                                     """, (
                                         datetime.utcnow(),
                                         tweet['id'],
