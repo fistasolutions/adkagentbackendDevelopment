@@ -4,12 +4,14 @@ from pydantic import BaseModel
 import os
 from dotenv import load_dotenv
 from datetime import datetime, timedelta
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
+from requests_oauthlib import OAuth1Session
 from db.db import get_connection
 import logging
 import json
 import random
 import httpx
+import time
 
 load_dotenv()
 
@@ -81,6 +83,25 @@ class CommentGenerationOutput(BaseModel):
 
 class DeleteCommentsRequest(BaseModel):
     comment_ids: List[str]
+    
+
+class TwitterComment(BaseModel):
+    id: str
+    text: str
+    author_id: str
+    created_at: str
+    username: str
+
+class PostWithComments(BaseModel):
+    id: int
+    content: str
+    user_id: int
+    account_id: int
+    status: str
+    posted_id: Optional[str]
+    posted_time: Optional[datetime]
+    created_at: datetime
+    comments: List[TwitterComment]
 
 def get_comment_analysis_agent_instructions(
     post_settings_data: dict = None,
@@ -92,22 +113,24 @@ def get_comment_analysis_agent_instructions(
         - Allowed posting days: {post_settings_data['posting_day']}
         - Posting times: {post_settings_data['posting_time']}
         - Posting frequency: {post_settings_data['posting_frequency']}
-        -Today is {datetime.utcnow().strftime("%Y-%m-%d")}
+        - Today is {datetime.utcnow().strftime("%Y-%m-%d")}
         
         When scheduling responses, strictly adhere to these posting schedule constraints.
+        The scheduled_time field should be one of the times returned by get_next_scheduled_times().
         """
 
     return f"""You are an expert comment analyzer and response generator. Your role is to:
 
     1. Deep Comment Analysis:
        - Analyze comment sentiment and tone
-       - Identify comment type (question, feedback, concern, suggestion)
+       - Identify comment type (question, feedback, concern, suggestion, greeting)
        - Extract key points and underlying intent
        - Evaluate engagement potential
        - Assess response priority
     
     2. Response Decision Making:
-       - Determine if response is warranted
+       - Always respond to greetings and casual interactions to maintain engagement
+       - Determine if response is warranted (default to True for greetings)
        - Identify optimal response timing based on posting schedule
        - Evaluate potential impact
        - Assess risk factors
@@ -209,6 +232,107 @@ comment_response_agent = Agent(
     output_type=ResponseOutput
 )
 
+
+
+def get_next_scheduled_times(posting_days: dict, posting_time: dict, posting_frequency: int, pre_create: int) -> List[str]:
+    """
+    Generate a list of scheduled times for posts based on the given parameters.
+    
+    Args:
+        posting_days: Dict mapping days to boolean values (e.g., {"月": True, "火": False, ...})
+        posting_time: Dict mapping hours to boolean values (e.g., {"0": True, "1": False, ...})
+        posting_frequency: Number of posts per day
+        pre_create: Number of days in advance to schedule posts
+    
+    Returns:
+        List of ISO format datetime strings for scheduled posts
+    """
+    # Map Japanese day names to weekday numbers (0 = Monday, 6 = Sunday)
+    day_mapping = {
+        "月": 0, "火": 1, "水": 2, "木": 3, "金": 4, "土": 5, "日": 6
+    }
+    
+    # Get current time in UTC
+    current_time = datetime.utcnow()
+    
+    # Get enabled days (days marked as True)
+    enabled_days = [day for day, enabled in posting_days.items() if enabled]
+    if not enabled_days:
+        raise ValueError("No posting days are enabled")
+    print("enabled_days",enabled_days)
+    # Get enabled hours (hours marked as True)
+    enabled_hours = [int(hour) for hour, enabled in posting_time.items() if enabled]
+    if not enabled_hours:
+        raise ValueError("No posting hours are enabled")
+    
+    # Sort enabled hours
+    enabled_hours.sort()
+    
+    # Calculate total number of posts needed
+    total_posts = posting_frequency * pre_create
+    print("total_posts",total_posts)
+    scheduled_times = []
+    current_date = current_time.date()
+    
+    while len(scheduled_times) < total_posts:
+        # Check if current day is enabled
+        current_day_jp = ["月", "火", "水", "木", "金", "土", "日"][current_date.weekday()]
+        
+        if current_day_jp in enabled_days:
+            # For each enabled hour on this day
+            for hour in enabled_hours:
+                # Create datetime for this hour
+                post_time = datetime.combine(current_date, datetime.min.time().replace(hour=hour))
+                
+                # Only add if it's in the future
+                if post_time > current_time:
+                    scheduled_times.append(post_time.isoformat() + "Z")
+                    
+                    # If we have enough posts for today, break
+                    if len([t for t in scheduled_times if t.startswith(current_date.isoformat())]) >= posting_frequency:
+                        break
+        
+        # Move to next day
+        current_date += timedelta(days=1)
+    
+    # Sort and return the scheduled times
+    return sorted(scheduled_times)[:total_posts]
+
+def parse_pre_create_days(pre_create_str: str) -> int:
+    """
+    Parse the pre_create string from Japanese format (e.g., "7日") to an integer.
+    
+    Args:
+        pre_create_str: String in format like "7日"
+    
+    Returns:
+        Integer number of days
+    """
+    try:
+        # Remove the "日" character and convert to integer
+        return int(pre_create_str.replace("日", ""))
+    except (ValueError, AttributeError):
+        # If parsing fails, return a default value of 7
+        return 7
+
+def parse_posting_frequency(frequency_str: str) -> int:
+    """
+    Parse the posting frequency string (e.g., "1day") to an integer.
+    
+    Args:
+        frequency_str: String in format like "1day"
+    
+    Returns:
+        Integer number of posts per day
+    """
+    try:
+        # Remove the "day" suffix and convert to integer
+        return int(frequency_str.replace("day", ""))
+    except (ValueError, AttributeError):
+        # If parsing fails, return a default value of 1
+        return 1
+
+
 async def get_template_text(user_id: str, account_id: str) -> Optional[List[str]]:
     """Get template text from persona_notify if templates are enabled."""
     conn = get_connection()
@@ -235,22 +359,158 @@ async def get_template_text(user_id: str, account_id: str) -> Optional[List[str]
     finally:
         conn.close()
 
+TWITTER_API_KEY = os.getenv('TWITTER_API_KEY')
+TWITTER_API_SECRET = os.getenv('TWITTER_API_SECRET')
+TWITTER_ACCESS_TOKEN = os.getenv('TWITTER_ACCESS_TOKEN')
+TWITTER_ACCESS_TOKEN_SECRET = os.getenv('TWITTER_ACCESS_TOKEN_SECRET')
+
+def get_twitter_auth():
+    return OAuth1Session(
+        TWITTER_API_KEY,
+        client_secret=TWITTER_API_SECRET,
+        resource_owner_key=TWITTER_ACCESS_TOKEN,
+        resource_owner_secret=TWITTER_ACCESS_TOKEN_SECRET
+    )
+
+
+async def get_posts_with_comments(
+    limit: int = Query(20, ge=1, le=50)
+):
+    """
+    Fetch posts with their comments from Twitter API.
+    Only returns posts with status "posted" in round-robin order.
+    """
+    try:
+        conn = get_connection()
+        with conn.cursor() as cursor:
+            # Get posts with status 'posted' in round-robin order
+            cursor.execute(
+                """
+                SELECT id, content, user_id, account_id, status, posted_id, 
+                       posted_time, created_at
+                FROM posts 
+                WHERE status = 'posted'
+                AND (
+                    comments_fetched_at IS NULL 
+                    OR DATE(comments_fetched_at) < CURRENT_DATE
+                )
+                ORDER BY COALESCE(comments_fetched_at, created_at) ASC
+                LIMIT %s
+                """,
+                (limit,)
+            )
+            posts = cursor.fetchall()
+            
+            result = []
+            oauth = get_twitter_auth()
+            
+            for post in posts:
+                posted_id = post[5]  # post[5] is posted_id
+                if not posted_id:
+                    continue
+
+                # Update comments_fetched_at immediately after fetching post
+                with conn.cursor() as update_cursor:
+                    update_cursor.execute(
+                        """
+                        UPDATE posts 
+                        SET comments_fetched_at = %s
+                        WHERE id = %s
+                        """,
+                        (datetime.utcnow(), post[0])
+                    )
+                    conn.commit()
+
+                # Add delay between requests to avoid rate limiting
+                time.sleep(1)  # 1 second delay between requests
+
+                # Fetch comments from Twitter API
+                url = f"https://api.twitter.com/2/tweets/search/recent"
+                params = {
+                    "query": f"in_reply_to_tweet_id:{posted_id}",
+                    "tweet.fields": "author_id,created_at,in_reply_to_user_id",
+                    "expansions": "author_id",
+                    "user.fields": "username",
+                    "max_results": 100
+                }
+                
+                try:
+                    response = oauth.get(url, params=params)
+                    print(f"Twitter API response for tweet {posted_id}: Status {response.status_code}")
+                    
+                    # Check rate limit headers
+                    remaining_requests = int(response.headers.get('x-rate-limit-remaining', 0))
+                    reset_time = int(response.headers.get('x-rate-limit-reset', 0))
+                    
+                    if remaining_requests <= 1:  # If we're about to hit the rate limit
+                        wait_time = reset_time - int(time.time())
+                        if wait_time > 0:
+                            print(f"Rate limit almost reached. Waiting {wait_time} seconds...")
+                            time.sleep(wait_time)
+                    
+                    if response.status_code == 429:  # Rate limit exceeded
+                        wait_time = reset_time - int(time.time())
+                        if wait_time > 0:
+                            print(f"Rate limit hit for tweet {posted_id}, waiting {wait_time} seconds...")
+                            time.sleep(wait_time)
+                            response = oauth.get(url, params=params)
+                    
+                    if response.status_code != 200:
+                        print(f"Twitter API error for tweet {posted_id}: {response.text}")
+                        continue
+
+                    twitter_data = response.json()
+                    print(f"Twitter API data for tweet {posted_id}: {twitter_data}")
+                    
+                    # Create a map of author_id -> username
+                    author_map = {
+                        user["id"]: user["username"] 
+                        for user in twitter_data.get("includes", {}).get("users", [])
+                    }
+                    
+                    # Convert Twitter comments to CommentResponse objects
+                    comment_list = []
+                    for tweet in twitter_data.get("data", []):
+                        author_id = tweet["author_id"]
+                        comment_list.append(TwitterComment(
+                            id=tweet["id"],
+                            text=tweet["text"],
+                            author_id=author_id,
+                            created_at=tweet["created_at"],
+                            username=author_map.get(author_id, "unknown_user")
+                        ))
+                    
+                    # Create PostWithComments object
+                    post_with_comments = PostWithComments(
+                        id=post[0],
+                        content=post[1],
+                        user_id=post[2],
+                        account_id=post[3],
+                        status=post[4],
+                        posted_id=post[5],
+                        posted_time=post[6],
+                        created_at=post[7],
+                        comments=comment_list
+                    )
+                    result.append(post_with_comments)
+                except Exception as e:
+                    print(f"Error processing tweet {posted_id}: {str(e)}")
+                    continue
+            
+            return result
+            
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        if 'conn' in locals():
+            conn.close()
+
 @router.post("/test-analyze-and-respond-comments")
 async def test_analyze_and_respond_to_comments():
     """Test endpoint with dummy data to analyze comments and generate responses, optimized for Twitter API rate limits."""
     try:
-        # Get up to 20 posts with comments from the comment_reply_api (rate limit safe)
-        async with httpx.AsyncClient() as client:
-            # response = await client.get("http://localhost:8000/api/posts-with-comments", params={
-            response = await client.get("https://adkagentbackenddevelopment-production.up.railway.app/api/posts-with-comments", params={
-                "limit": 20
-            })
-            if response.status_code != 200:
-                raise HTTPException(
-                    status_code=response.status_code,
-                    detail="Failed to fetch posts with comments"
-                )
-            posts_with_comments = response.json()
+        # Get up to 20 posts with comments using the local function
+        posts_with_comments = await get_posts_with_comments(limit=20)
 
         if not posts_with_comments:
             return {"message": "No posts with comments found"}
@@ -259,12 +519,12 @@ async def test_analyze_and_respond_to_comments():
         processed_post_ids = []
         for post in posts_with_comments:
             # Skip if post has no comments
-            if not post.get("comments"):
+            if not post.comments:
                 continue
                 
-            user_id = post["user_id"]
-            account_id = post["account_id"]
-            post_id = post["id"]
+            user_id = post.user_id
+            account_id = post.account_id
+            post_id = post.id
             processed_post_ids.append(post_id)
             
             # Get post settings for the agent
@@ -272,25 +532,37 @@ async def test_analyze_and_respond_to_comments():
             with conn.cursor() as cursor:
                 cursor.execute(
                     """
-                    SELECT posting_day, posting_time, posting_frequency, posting_time
+                    SELECT posting_day, posting_time, posting_frequency, posting_time, pre_create
                     FROM persona_notify 
                     WHERE notify_type = 'commentReply'
                     AND user_id = %s 
+                    AND account_id = %s
                     """,
-                    (user_id,),
+                    (user_id, account_id),
                 )
                 post_settings = cursor.fetchone()
                 if not post_settings:
                     continue  
                 posting_day = post_settings[0]
                 posting_time = post_settings[1]
-                posting_frequency = post_settings[2]
+                posting_frequency = parse_posting_frequency(post_settings[2])
                 posting_time = post_settings[3]
+                pre_create = parse_pre_create_days(post_settings[4])
+                
+                # Get scheduled times for responses
+                scheduled_times = get_next_scheduled_times(
+                    posting_day,
+                    posting_time,
+                    posting_frequency,
+                    pre_create
+                )
+                
                 post_settings_data = {
                     "posting_day": posting_day,
                     "posting_time": posting_time,
                     "posting_frequency": posting_frequency,
-                    "posting_time": posting_time
+                    "posting_time": posting_time,
+                    "scheduled_times": scheduled_times
                 }
                 comment_analysis_agent.instructions = get_comment_analysis_agent_instructions(post_settings_data)
 
@@ -299,22 +571,23 @@ async def test_analyze_and_respond_to_comments():
             conn_check = get_connection()
             try:
                 with conn_check.cursor() as cursor_check:
-                    for comment in post["comments"]:
+                    for comment in post.comments:
                         # Check if this comment has already been responded to
+                        print("comment",comment)
                         cursor_check.execute(
                             """
                             SELECT 1 FROM comments_reply WHERE comment_id = %s
                             """,
-                            (comment["id"],)
+                            (comment.id,)
                         )
                         if cursor_check.fetchone():
                             continue  # Already responded, skip
                         comments_for_analysis.append({
-                            "tweet_id": post["posted_id"],
-                            "tweet_text": post["content"],
-                            "comment": comment["text"],
-                            "username": comment["username"],
-                            "comment_id": comment["id"]
+                            "tweet_id": post.posted_id,
+                            "tweet_text": post.content,
+                            "comment": comment.text,
+                            "username": comment.username,
+                            "comment_id": comment.id
                         })
             finally:
                 conn_check.close()
@@ -324,6 +597,7 @@ async def test_analyze_and_respond_to_comments():
 
             # Analyze comments using the analysis agent
             analysis_input = str(comments_for_analysis)
+            print(f"Analyzing comments: {analysis_input}")
             analysis_result = await Runner.run(
                 comment_analysis_agent,
                 input=analysis_input
@@ -333,69 +607,81 @@ async def test_analyze_and_respond_to_comments():
                 analysis_output = json.loads(analysis_output)
             if not isinstance(analysis_output, AnalysisOutput):
                 analysis_output = AnalysisOutput(**analysis_output)
+            print(f"Analysis output: {analysis_output}")
+            
             comments_to_respond = [
                 comment for comment in analysis_output.comments
                 if comment.should_respond
             ]
+            print(f"Comments to respond: {len(comments_to_respond)}")
+            
             if not comments_to_respond:
+                print("No comments to respond to, skipping...")
                 continue
 
             templates = await get_template_text(user_id, account_id)
+            print(f"Got templates: {templates is not None}")
             responses = []
             conn = get_connection()
             try:
                 with conn.cursor() as cursor:
-                    for comment in comments_to_respond:
+                    for i, comment in enumerate(comments_to_respond):
+                        print(f"Processing comment: {comment.comment_text}")
                         response_text = None
-                        if templates:
-                            response_text = random.choice(templates)
-                        else:
-                            response_input = f"""Post Content: {comment.comment_text}\nComment: {comment.comment_text}\nComment Type: {comment.comment_type}\nKey Points: {', '.join(comment.key_points)}\nTone: {comment.tone}\nContext: {comment.reason}\nUsername: {comment.commentor_username}"""
-                            response_result = await Runner.run(
-                                comment_response_agent,
-                                input=response_input
-                            )
-                            response_output = response_result.final_output
-                            if isinstance(response_output, str):
-                                response_output = json.loads(response_output)
-                            if not isinstance(response_output, ResponseOutput):
-                                response_output = ResponseOutput(**response_output)
-                            response_text = response_output.response_text
+                        if templates and templates:  # Check if templates exist and are not empty
+                            template = random.choice(templates)
+                            if template and template.strip():  # Check if template is not empty
+                                response_text = template
+                                print(f"Using template response: {response_text}")
+                        
+                        # If no template or template is empty, use suggested response
+                        if not response_text:
+                            response_text = comment.suggested_response
+                            print(f"Using suggested response: {response_text}")
 
-                        tweet_url = f"https://x.com/i/web/status/{post['posted_id']}"
+                        tweet_url = f"https://x.com/i/web/status/{post.posted_id}"
+                        
+                        # Get scheduled time from the list of available times
+                        scheduled_time = scheduled_times[i % len(scheduled_times)] if scheduled_times else datetime.utcnow()
                         
                         # Save response to comments_reply table
-                        cursor.execute(
-                            """
-                            INSERT INTO comments_reply 
-                            (reply_text, risk_score, user_id, account_username, schedule_time, commentor_username, tweet_id, original_comment, tweet_url)
-                            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
-                            RETURNING id
-                            """,
-                            (
-                                response_text,
-                                20,
-                                user_id,
-                                account_id,
-                                datetime.utcnow() if comment.scheduled_time == "Immediate" else comment.scheduled_time,
-                                comment.commentor_username,
-                                post["posted_id"],
-                                comment.comment_text,
-                                tweet_url
+                        try:
+                            print(f"Attempting to save response to database: {response_text}")
+                            cursor.execute(
+                                """
+                                INSERT INTO comments_reply 
+                                (reply_text, risk_score, user_id, account_username, schedule_time, commentor_username, tweet_id, original_comment, tweet_url, comment_id)
+                                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                                RETURNING id
+                                """,
+                                (
+                                    response_text,
+                                    20,
+                                    user_id,
+                                    account_id,
+                                    scheduled_time,
+                                    comment.commentor_username,
+                                    post.posted_id,
+                                    comment.comment_text,
+                                    tweet_url,
+                                    comment.comment_id
+                                )
                             )
-                        )
-                        reply_id = cursor.fetchone()[0]
+                            reply_id = cursor.fetchone()[0]
+                            print(f"Successfully saved response with ID: {reply_id}")
+                            conn.commit()
+                        except Exception as e:
+                            print(f"Error saving response to database: {str(e)}")
+                            conn.rollback()
+                            continue
+
                         responses.append({
                             "reply_id": reply_id,
                             "comment_id": comment.comment_id,
-                            "post_id": post["posted_id"],
+                            "post_id": post.posted_id,
                             "response_text": response_text,
-                            "scheduled_time": comment.scheduled_time,
+                            "scheduled_time": scheduled_time,
                             "priority": comment.response_priority,
-                            "engagement_score": 0.5 if templates else response_output.engagement_score,
-                            "tone_match_score": 0.5 if templates else response_output.tone_match_score,
-                            "context_relevance_score": 0.5 if templates else response_output.context_relevance_score,
-                            "response_type": "template" if templates else response_output.response_type,
                             "comment_type": comment.comment_type,
                             "key_points": comment.key_points,
                             "tone": comment.tone,

@@ -9,7 +9,7 @@ from fastapi import FastAPI
 from agent.risk_assessment_agent import RiskAssessmentAgent, RiskAssessmentRequest
 from db.db import get_connection
 import json
-from datetime import datetime
+from datetime import datetime, timedelta
 from agent.reply_generation_agent import generate_reply, ReplyGenerationRequest
 from requests_oauthlib import OAuth1Session
 
@@ -65,6 +65,72 @@ class TweetUpdateRequest(BaseModel):
     tweet_id: str
     content: Optional[str] = None
     scheduled_time: Optional[str] = None   
+    
+    
+ 
+def get_next_scheduled_times(posting_days: dict, posting_time: dict, posting_frequency: int, pre_create: int) -> List[str]:
+    """
+    Generate a list of scheduled times for posts based on the given parameters.
+    
+    Args:
+        posting_days: Dict mapping days to boolean values (e.g., {"月": True, "火": False, ...})
+        posting_time: Dict mapping hours to boolean values (e.g., {"0": True, "1": False, ...})
+        posting_frequency: Number of posts per day
+        pre_create: Number of days in advance to schedule posts
+    
+    Returns:
+        List of ISO format datetime strings for scheduled posts
+    """
+    # Map Japanese day names to weekday numbers (0 = Monday, 6 = Sunday)
+    day_mapping = {
+        "月": 0, "火": 1, "水": 2, "木": 3, "金": 4, "土": 5, "日": 6
+    }
+    
+    # Get current time in UTC
+    current_time = datetime.utcnow()
+    
+    # Get enabled days (days marked as True)
+    enabled_days = [day for day, enabled in posting_days.items() if enabled]
+    if not enabled_days:
+        raise ValueError("No posting days are enabled")
+    
+    # Get enabled hours (hours marked as True)
+    enabled_hours = [int(hour) for hour, enabled in posting_time.items() if enabled]
+    if not enabled_hours:
+        raise ValueError("No posting hours are enabled")
+    
+    # Sort enabled hours
+    enabled_hours.sort()
+    
+    # Calculate total number of posts needed
+    total_posts = posting_frequency * pre_create
+    scheduled_times = []
+    current_date = current_time.date()
+    
+    while len(scheduled_times) < total_posts:
+        # Check if current day is enabled
+        current_day_jp = ["月", "火", "水", "木", "金", "土", "日"][current_date.weekday()]
+        
+        if current_day_jp in enabled_days:
+            # For each enabled hour on this day
+            for hour in enabled_hours:
+                # Create datetime for this hour
+                post_time = datetime.combine(current_date, datetime.min.time().replace(hour=hour))
+                
+                # Only add if it's in the future
+                if post_time > current_time:
+                    scheduled_times.append(post_time.isoformat() + "Z")
+                    
+                    # If we have enough posts for today, break
+                    if len([t for t in scheduled_times if t.startswith(current_date.isoformat())]) >= posting_frequency:
+                        break
+        
+        # Move to next day
+        current_date += timedelta(days=1)
+    
+    # Sort and return the scheduled times
+    return sorted(scheduled_times)[:total_posts]
+   
     
 def fetch_tweets_for_hashtag(hashtag: str, max_results: int = 10) -> List[dict]:
     """Fetch tweets for a single hashtag using X API."""
@@ -207,8 +273,14 @@ async def cron_fetch_hashtag_tweets():
                         pre_create = parse_frequency_string(hashtag_result[2])
                         template_use = hashtag_result[3]
                         template_text = hashtag_result[4]
+                        # Handle posting_day - check if it's already a dict
                         posting_day = hashtag_result[5]
+                        if isinstance(posting_day, str):
+                            posting_day = json.loads(posting_day)
+                        # Handle posting_time - check if it's already a dict
                         posting_time = hashtag_result[6]
+                        if isinstance(posting_time, str):
+                            posting_time = json.loads(posting_time)
                         post_mode = hashtag_result[7]
                         if not hashtags:
                             print(f"Empty hashtags list for account {account_id}")
@@ -217,6 +289,14 @@ async def cron_fetch_hashtag_tweets():
                         # Calculate total tweets needed and distribute across hashtags
                         total_tweets_needed = posting_frequency * pre_create
                         
+                        # Get scheduled times for all tweets
+                        scheduled_times = get_next_scheduled_times(
+                            posting_day,
+                            posting_time,
+                            posting_frequency,
+                            pre_create
+                        )
+                        print("scheduled_times",scheduled_times)
                         # Ensure we fetch at least 10 tweets per hashtag (Twitter API requirement)
                         min_tweets_per_hashtag = 10
                         tweets_per_hashtag = max(min_tweets_per_hashtag, total_tweets_needed // len(hashtags))
@@ -273,7 +353,7 @@ async def cron_fetch_hashtag_tweets():
                                 user_id
                             ))
 
-                            for tweet in all_tweets:
+                            for tweet_index, tweet in enumerate(all_tweets):
                                 try:
                                     # Generate reply using the reply generation agent
                                     reply_request = ReplyGenerationRequest(
@@ -314,7 +394,7 @@ async def cron_fetch_hashtag_tweets():
                                         user_id,
                                         reply.reply_text,
                                         reply.risk_score,
-                                        reply.schedule_time,
+                                        scheduled_times[tweet_index] if str(post_mode).upper() == "TRUE" else None,
                                         tweet['user']['profile_image_url']
                                     ))
                                 except Exception as e:
