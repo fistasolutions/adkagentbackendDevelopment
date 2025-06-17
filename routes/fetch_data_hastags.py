@@ -13,6 +13,18 @@ from datetime import datetime, timedelta
 from datetime import datetime, timedelta
 from agent.reply_generation_agent import generate_reply, ReplyGenerationRequest
 from requests_oauthlib import OAuth1Session
+from agent.draft_post_comment_agent import DraftPostCommentAgent, DraftPostCommentRequest, DraftPostCommentResponse
+
+
+
+class DraftPostCommentRequestPost(BaseModel):
+    previous_comment: str
+    num_drafts: int
+    prompt: Optional[str] = None
+    character_settings: Optional[str] = None
+    user_id: int
+    account_id: str
+
 
 load_dotenv()
 
@@ -726,6 +738,13 @@ async def update_post_comment(request: TweetUpdateRequest):
                     if risk_assessment:
                         update_fields.append("risk_score = %s")
                         update_values.append(risk_assessment.overall_risk_score)
+                    if risk_assessment:
+                        update_fields.append("risk_assesments = %s")
+                        risk_assessment_json = json.dumps({
+                            "risk_categories": [category.dict() for category in risk_assessment.risk_categories],
+                            "risk_assignment": risk_assessment.risk_assignment
+                        })
+                        update_values.append(risk_assessment_json)
 
                 if request.scheduled_time:
                     try:
@@ -780,3 +799,66 @@ async def update_post_comment(request: TweetUpdateRequest):
     except Exception as e:
         print(f"Error updating tweet: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Failed to update tweet: {str(e)}")
+    
+    
+@router.post("/generate-post-comment", response_model=DraftPostCommentResponse)
+async def generate_post_comment(request: DraftPostCommentRequestPost):
+    """
+    Generate draft comments based on previous comments and prompt.
+    
+    Args:
+        request (DraftPostCommentRequest): The request containing the number of drafts needed, prompt, user_id, account_id, and optional character settings
+        
+    Returns:
+        DraftPostCommentResponse: The generated draft tweets
+    """
+    try:
+        # If event_id is provided, fetch event data
+        post_comment_data = None
+        character_settings = None
+        
+        conn = get_connection()
+        try:
+            with conn.cursor() as cursor:
+                # Fetch character settings
+                cursor.execute("""
+                    SELECT character_settings 
+                    FROM personas 
+                    WHERE user_id = %s 
+                    AND account_id = %s
+                """, (request.user_id, request.account_id))
+                character_settings = cursor.fetchone()
+                
+                if not character_settings:
+                    raise HTTPException(
+                        status_code=400,
+                        detail="Character settings not found. Please set up your character settings before generating tweets."
+                    )
+                
+        finally:
+            conn.close()
+
+        # Initialize agent with event data if available
+        agent = DraftPostCommentAgent()
+        
+        # Create base request for the agent
+        agent_request = DraftPostCommentRequest(
+            num_drafts=request.num_drafts,
+            prompt=request.prompt,
+            previous_comment=request.previous_comment,
+            character_settings=character_settings[0] if character_settings else None
+        )
+        
+        response = await agent.get_response(agent_request)
+        return response
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+ 
+    
+    
+
+class DraftPostCommentResponse(BaseModel):
+    draft_tweets: List[str]
+ 
+    
+    
