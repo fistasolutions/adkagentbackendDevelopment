@@ -4,7 +4,7 @@ from pydantic import BaseModel
 from fastapi import HTTPException
 
 class DraftCommentReplyRequest(BaseModel):
-    previous_tweet: str
+    previous_comment: str
     num_drafts: int
     prompt: Optional[str] = None
     character_settings: Optional[str] = None

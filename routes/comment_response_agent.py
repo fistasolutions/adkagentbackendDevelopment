@@ -957,7 +957,7 @@ async def update_tweet(request: TweetUpdateRequest):
                 cursor.execute(
                     """
                     SELECT id
-                    FROM posts 
+                    FROM  comments_reply
                     WHERE id = %s
                     """,
                     (request.tweet_id,),
@@ -972,7 +972,7 @@ async def update_tweet(request: TweetUpdateRequest):
                 update_values = []
 
                 if request.content:
-                    update_fields.append("content = %s")
+                    update_fields.append("reply_text = %s")
                     update_values.append(request.content)
                     # Add risk score if content is being updated
                     if risk_assessment:
@@ -988,8 +988,7 @@ async def update_tweet(request: TweetUpdateRequest):
 
                 if request.scheduled_time:
                     try:
-                    
-                        update_fields.append("scheduled_time = %s")
+                        update_fields.append("schedule_time = %s")
                         update_values.append(request.scheduled_time)
                     except ValueError:
                         raise HTTPException(
@@ -1002,10 +1001,10 @@ async def update_tweet(request: TweetUpdateRequest):
 
                 # Construct and execute the update query
                 update_query = f"""
-                    UPDATE posts 
+                    UPDATE comments_reply 
                     SET {', '.join(update_fields)}
                     WHERE id = %s
-                    RETURNING id, content, scheduled_time, risk_score, risk_assesments
+                    RETURNING id, reply_text, schedule_time, risk_score, risk_assesments
                 """
 
                 cursor.execute(update_query, update_values)
@@ -1023,7 +1022,7 @@ async def update_tweet(request: TweetUpdateRequest):
                     "message": "Tweet updated successfully",
                     "tweet": {
                         "id": updated_tweet[0],
-                        "content": updated_tweet[1],
+                        "reply_text": updated_tweet[1],
                         "scheduled_time": updated_tweet[2],
                         "risk_score": updated_tweet[3],
                         "risk_assesments": risk_assesments_value
