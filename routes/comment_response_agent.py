@@ -13,10 +13,49 @@ import random
 import httpx
 import time
 
-load_dotenv()
+from agent.draft_comment_reply_agent import (
+    DraftCommentReplyAgent,
+    DraftCommentReplyRequest,
+    DraftCommentReplyResponse,
+)
+from agent.risk_assessment_agent import RiskAssessmentAgent, RiskAssessmentRequest
 
 router = APIRouter()
 
+load_dotenv()
+
+router = APIRouter()
+class TweetRequest(BaseModel):
+    user_id: str
+    account_id: str
+
+
+class DraftCommentReplyRequestPost(BaseModel):
+    previous_comment: str
+    num_drafts: int
+    prompt: Optional[str] = None
+    character_settings: Optional[str] = None
+    account_id: str
+    user_id: int
+
+class TweetUpdateRequest(BaseModel):
+    tweet_id: str
+    content: Optional[str] = None
+    scheduled_time: Optional[str] = None
+
+
+class TweetImageUpdateRequest(BaseModel):
+    tweet_id: str
+    image_urls: List[str]
+
+
+class DeleteTweetRequest(BaseModel):
+    tweet_id: str
+
+
+class DeleteTweetImageRequest(BaseModel):
+    tweet_id: str
+    image_urls: List[str]
 class CommentAnalysis(BaseModel):
     comment_id: str
     post_id: str
@@ -761,7 +800,8 @@ async def get_comments(
                     c.recommended_time,
                     c.tweet_url,
                     c.post_status,
-                    c.created_at
+                    c.created_at,
+                    c.image_urls
                 FROM comments_reply c
                 WHERE c.user_id = %s 
                 AND c.account_username = %s
@@ -811,7 +851,8 @@ async def get_comments(
                     "recommended_time": row[7],
                     "tweet_url": row[8],
                     "post_status": row[9],
-                    "created_at": row[10]
+                    "created_at": row[10],
+                    "image_urls": row[11]
                 }
                 comments.append(comment)
             
@@ -890,3 +931,310 @@ async def delete_comments(request: DeleteCommentsRequest):
         )
     finally:
         conn.close()
+        
+        
+@router.put("/update-comment")
+async def update_tweet(request: TweetUpdateRequest):
+    """Update the content or scheduled time of a tweet."""
+    try:
+        if not request.content and not request.scheduled_time:
+            raise HTTPException(
+                status_code=400,
+                detail="At least one of content or scheduled_time must be provided",
+            )
+
+        # Perform risk assessment if content is being updated
+        risk_assessment = None
+        if request.content:
+            risk_agent = RiskAssessmentAgent()
+            risk_assessment = await risk_agent.get_response(RiskAssessmentRequest(content=request.content))
+            print(risk_assessment)
+        
+        conn = get_connection()
+        try:
+            with conn.cursor() as cursor:
+                # First check if the tweet exists
+                cursor.execute(
+                    """
+                    SELECT id
+                    FROM posts 
+                    WHERE id = %s
+                    """,
+                    (request.tweet_id,),
+                )
+                tweet = cursor.fetchone()
+
+                if not tweet:
+                    raise HTTPException(status_code=404, detail="Tweet not found")
+
+                # Prepare the update query based on provided fields
+                update_fields = []
+                update_values = []
+
+                if request.content:
+                    update_fields.append("content = %s")
+                    update_values.append(request.content)
+                    # Add risk score if content is being updated
+                    if risk_assessment:
+                        update_fields.append("risk_score = %s")
+                        update_values.append(risk_assessment.overall_risk_score)
+                        # Convert risk assessment to JSON string
+                        risk_assessment_json = json.dumps({
+                            "risk_categories": [category.dict() for category in risk_assessment.risk_categories],
+                            "risk_assignment": risk_assessment.risk_assignment
+                        })
+                        update_fields.append("risk_assesments = %s")
+                        update_values.append(risk_assessment_json)
+
+                if request.scheduled_time:
+                    try:
+                    
+                        update_fields.append("scheduled_time = %s")
+                        update_values.append(request.scheduled_time)
+                    except ValueError:
+                        raise HTTPException(
+                            status_code=400,
+                            detail="Invalid scheduled_time format. Use ISO format: YYYY-MM-DDTHH:MM:SSZ",
+                        )
+
+                # Add tweet_id to the values list
+                update_values.append(request.tweet_id)
+
+                # Construct and execute the update query
+                update_query = f"""
+                    UPDATE posts 
+                    SET {', '.join(update_fields)}
+                    WHERE id = %s
+                    RETURNING id, content, scheduled_time, risk_score, risk_assesments
+                """
+
+                cursor.execute(update_query, update_values)
+                updated_tweet = cursor.fetchone()
+
+                conn.commit()
+
+                risk_assesments_value = updated_tweet[4]
+                if isinstance(risk_assesments_value, str):
+                    try:
+                        risk_assesments_value = json.loads(risk_assesments_value)
+                    except Exception:
+                        pass
+                response = {
+                    "message": "Tweet updated successfully",
+                    "tweet": {
+                        "id": updated_tweet[0],
+                        "content": updated_tweet[1],
+                        "scheduled_time": updated_tweet[2],
+                        "risk_score": updated_tweet[3],
+                        "risk_assesments": risk_assesments_value
+                    }
+                }
+
+                return response
+
+        except HTTPException as he:
+            raise he
+        except Exception as db_error:
+            print(f"Database error: {str(db_error)}")
+            raise HTTPException(
+                status_code=500, detail=f"Failed to update tweet: {str(db_error)}"
+            )
+        finally:
+            conn.close()
+
+    except HTTPException as he:
+        raise he
+    except Exception as e:
+        print(f"Error updating tweet: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to update tweet: {str(e)}")
+
+
+@router.put("/update-comment-image")
+async def update_tweet_image(request: TweetImageUpdateRequest):
+    """Append new image URLs to a tweet, avoiding duplicates."""
+    try:
+        conn = get_connection()
+        try:
+            with conn.cursor() as cursor:
+                # First check if the tweet exists and get current images
+                cursor.execute(
+                    """
+                    SELECT id, image_urls
+                    FROM comments_reply 
+                    WHERE id = %s
+                    """,
+                    (request.tweet_id,),
+                )
+                tweet = cursor.fetchone()
+
+                if not tweet:
+                    raise HTTPException(status_code=404, detail="Tweet not found")
+
+                current_images = tweet[1]
+                if current_images:
+                    try:
+                        if isinstance(current_images, str):
+                            current_images = json.loads(current_images)
+                    except Exception:
+                        current_images = []
+                else:
+                    current_images = []
+
+                # Append new images, avoiding duplicates
+                updated_images = list(dict.fromkeys(current_images + request.image_urls))
+
+                # Update the image URLs (as JSONB)
+                cursor.execute(
+                    """
+                    UPDATE comments_reply 
+                    SET image_urls = %s
+                    WHERE id = %s
+                    RETURNING id, image_urls
+                    """,
+                    (json.dumps(updated_images), request.tweet_id),
+                )
+                updated_tweet = cursor.fetchone()
+
+                conn.commit()
+
+                return {
+                    "message": "Tweet images updated successfully",
+                    "tweet": {
+                        "id": updated_tweet[0],
+                        "image_urls": updated_tweet[1],
+                    },
+                }
+
+        except HTTPException as he:
+            raise he
+        except Exception as db_error:
+            print(f"Database error: {str(db_error)}")
+            raise HTTPException(
+                status_code=500, detail=f"Failed to update tweet images: {str(db_error)}"
+            )
+        finally:
+            conn.close()
+
+    except HTTPException as he:
+        raise he
+    except Exception as e:
+        print(f"Error updating tweet images: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to update tweet images: {str(e)}")
+    
+    
+
+@router.delete("/delete-comment-image")
+async def delete_tweet_image(request: DeleteTweetImageRequest):
+    """Delete specific image URLs from a tweet's Image_url field."""
+    try:
+        conn = get_connection()
+        try:
+            with conn.cursor() as cursor:
+                # First check if the tweet exists and get current images
+                cursor.execute(
+                    """
+                    SELECT id, image_urls
+                    FROM comments_reply 
+                    WHERE id = %s
+                    """,
+                    (request.tweet_id,),
+                )
+                tweet = cursor.fetchone()
+
+                if not tweet:
+                    raise HTTPException(status_code=404, detail="Tweet not found")
+
+                current_images = tweet[1]
+                if current_images:
+                    try:
+                        if isinstance(current_images, str):
+                            current_images = json.loads(current_images)
+                    except Exception:
+                        current_images = []
+                else:
+                    current_images = []
+
+                # Remove the specified image URLs
+                updated_images = [url for url in current_images if url not in request.image_urls]
+
+                # Update the image URLs (as JSONB)
+                cursor.execute(
+                    """
+                    UPDATE comments_reply 
+                    SET image_urls = %s
+                    WHERE id = %s
+                    RETURNING id, image_urls
+                    """,
+                    (json.dumps(updated_images), request.tweet_id),
+                )
+                updated_tweet = cursor.fetchone()
+
+                conn.commit()
+
+                return {
+                    "message": "Tweet images deleted successfully",
+                    "tweet": {
+                        "id": updated_tweet[0],
+                        "image_urls": updated_tweet[1],
+                    },
+                }
+
+        except HTTPException as he:
+            raise he
+        except Exception as db_error:
+            print(f"Database error: {str(db_error)}")
+            raise HTTPException(
+                status_code=500, detail=f"Failed to delete tweet images: {str(db_error)}"
+            )
+        finally:
+            conn.close()
+
+    except HTTPException as he:
+        raise he
+    except Exception as e:
+        print(f"Error deleting tweet images: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to delete tweet images: {str(e)}")
+
+
+
+
+@router.post("/generate-draft-comments", response_model=DraftCommentReplyResponse)
+async def generate_draft_comments(request: DraftCommentReplyRequestPost):
+    """
+    Generate draft comments based on a previous comment.
+
+    Args:
+        request (DraftTweetGenerationRequest): The request containing the previous tweet, number of drafts needed, and optional prompt
+
+    Returns:
+        DraftTweetResponse: The generated draft tweets
+    """
+    try:
+        conn = get_connection()
+        with conn.cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT character_settings 
+                FROM personas 
+                WHERE user_id = %s 
+                AND account_id = %s
+                """,
+                (request.user_id, request.account_id),
+            )
+            character_settings = cursor.fetchone()
+        print(character_settings)
+        agent = DraftCommentReplyAgent()
+        response = await agent.get_response(
+            DraftCommentReplyRequest(
+                previous_comment=request.previous_comment,
+                num_drafts=request.num_drafts,
+                prompt=request.prompt,
+                character_settings=(
+                    character_settings[0] if character_settings else None
+                ),
+            )
+        )
+        return response
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
