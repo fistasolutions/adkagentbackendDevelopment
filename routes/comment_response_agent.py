@@ -801,7 +801,8 @@ async def get_comments(
                     c.tweet_url,
                     c.post_status,
                     c.created_at,
-                    c.image_urls
+                    c.image_urls,
+                    c.risk_assesments
                 FROM comments_reply c
                 WHERE c.user_id = %s 
                 AND c.account_username = %s
@@ -852,7 +853,8 @@ async def get_comments(
                     "tweet_url": row[8],
                     "post_status": row[9],
                     "created_at": row[10],
-                    "image_urls": row[11]
+                    "image_urls": row[11],
+                    "risk_assesments": row[12] if row[12] else None
                 }
                 comments.append(comment)
             
