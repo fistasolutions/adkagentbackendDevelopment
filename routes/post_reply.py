@@ -53,7 +53,7 @@ def post_tweet_reply(tweet_id: str, reply_text: str, auth: OAuth1) -> dict:
             detail=f"Failed to post reply: {response.text}"
         )
 
-@router.post("/post-replies")
+@router.post("/post-comment-replies")
 async def post_replies():
     """
     Post replies to tweets from the comments_reply table.
@@ -66,8 +66,8 @@ async def post_replies():
                 # Get all unposted replies
                 cursor.execute(
                     """
-                    SELECT id, tweet_id, reply_text 
-                    FROM post_reply 
+                    SELECT id, comment_id, reply_text 
+                    FROM comments_reply 
                     WHERE post_status = 'unposted'
                     AND (schedule_time <= NOW()) OR (recommended_time <= NOW())
                     ORDER BY COALESCE(schedule_time, created_at) ASC
@@ -95,7 +95,7 @@ async def post_replies():
                         # Update the status in database
                         cursor.execute(
                             """
-                            UPDATE post_reply 
+                            UPDATE comments_reply 
                             SET post_status = 'posted',
                                 posted_id = %s
                             WHERE id = %s
