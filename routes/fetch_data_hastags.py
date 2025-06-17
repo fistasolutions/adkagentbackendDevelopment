@@ -369,20 +369,55 @@ async def cron_fetch_hashtag_tweets():
                             for tweet_index, tweet in enumerate(all_tweets):
                                 try:
                                     # Generate reply using the reply generation agent
-                                    reply_request = ReplyGenerationRequest(
-                                        tweet_id=tweet['id'],
-                                        tweet_text=tweet['text'],
-                                        post_username=tweet['user']['screen_name'],
-                                        character_settings=character_settings[0],
-                                        posting_frequency=posting_frequency,
-                                        pre_create=pre_create,
-                                        template_use=template_use,
-                                        template_text=template_text,
-                                        posting_day=posting_day,
-                                        posting_time=posting_time
-                                    )
-                                    
-                                    reply = await generate_reply(reply_request)
+                                    if template_use and template_text:
+                                        # If template is enabled, use template text directly
+                                        try:
+                                            # Parse template_text as JSON array if it's a string
+                                            if isinstance(template_text, str):
+                                                template_list = json.loads(template_text)
+                                            else:
+                                                template_list = template_text
+                                            
+                                            # Randomly select one template from the list
+                                            import random
+                                            reply_text = random.choice(template_list)
+                                            risk_score = 0  # Set default risk score for template text
+                                        except Exception as e:
+                                            print(f"Error processing template text: {str(e)}")
+                                            # Fallback to AI generation if template processing fails
+                                            reply_request = ReplyGenerationRequest(
+                                                tweet_id=tweet['id'],
+                                                tweet_text=tweet['text'],
+                                                post_username=tweet['user']['screen_name'],
+                                                character_settings=character_settings[0],
+                                                posting_frequency=posting_frequency,
+                                                pre_create=pre_create,
+                                                template_use=template_use,
+                                                template_text=template_text,
+                                                posting_day=posting_day,
+                                                posting_time=posting_time
+                                            )
+                                            reply = await generate_reply(reply_request)
+                                            reply_text = reply.reply_text
+                                            risk_score = reply.risk_score
+                                    else:
+                                        # Generate reply using the reply generation agent
+                                        reply_request = ReplyGenerationRequest(
+                                            tweet_id=tweet['id'],
+                                            tweet_text=tweet['text'],
+                                            post_username=tweet['user']['screen_name'],
+                                            character_settings=character_settings[0],
+                                            posting_frequency=posting_frequency,
+                                            pre_create=pre_create,
+                                            template_use=template_use,
+                                            template_text=template_text,
+                                            posting_day=posting_day,
+                                            posting_time=posting_time
+                                        )
+                                        
+                                        reply = await generate_reply(reply_request)
+                                        reply_text = reply.reply_text
+                                        risk_score = reply.risk_score
                                     
                                     # Get scheduled time for this tweet
                                     scheduled_time = scheduled_times[i] if i < len(scheduled_times) else None
@@ -409,8 +444,8 @@ async def cron_fetch_hashtag_tweets():
                                         tweet['user']['screen_name'],
                                         account_id,
                                         user_id,
-                                        reply.reply_text,
-                                        reply.risk_score,
+                                        reply_text,
+                                        risk_score,
                                         scheduled_times[tweet_index] if str(post_mode).upper() == "TRUE" else None,
                                         tweet['user']['profile_image_url'],
                                         None  # Adding missing recommended_time value

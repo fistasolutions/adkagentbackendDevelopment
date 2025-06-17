@@ -631,7 +631,7 @@ async def generate_tweets(request: TweetRequest):
                 }
                 
                 current_time = datetime.utcnow()
-                twenty_four_hours_ago = current_time - timedelta(hours=24)
+                twenty_four_hours_ago = current_time - timedelta(hours=20)
                 
                 cursor.execute(
                     """
@@ -648,7 +648,7 @@ async def generate_tweets(request: TweetRequest):
                 if recent_tweets_count > 0:
                     raise HTTPException(
                         status_code=429,  # Too Many Requests
-                        detail="You have already generated tweets in the last 30 minutes. Please wait before generating new tweets.",
+                        detail="You have already generated tweets in the last 24 minutes. Please wait before generating new tweets.",
                     )
         finally:
             conn.close()
