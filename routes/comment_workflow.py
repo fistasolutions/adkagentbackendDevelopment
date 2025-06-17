@@ -491,7 +491,8 @@ async def get_comments(
                     user_id,
                     id,
                     author_profile,
-                    image_urls
+                    image_urls,
+                    risk_assesments
                 FROM post_for_reply
                 WHERE account_id = %s
                 AND user_id = %s
@@ -543,7 +544,8 @@ async def get_comments(
                     "user_id": row[9],
                     "id": row[10],
                     "author_profile": row[11],
-                    "image_urls": row[12]
+                    "image_urls": row[12],
+                    "risk_assesments": row[13] if row[13] else None
                 }
                 comments.append(comment)
             
