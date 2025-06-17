@@ -729,7 +729,6 @@ async def update_post_comment(request: TweetUpdateRequest):
 
                 if request.scheduled_time:
                     try:
-                        datetime.strptime(request.scheduled_time, "%Y-%m-%dT%H:%M:%SZ")
                         update_fields.append("schedule_time = %s")
                         update_values.append(request.scheduled_time)
                     except ValueError:
