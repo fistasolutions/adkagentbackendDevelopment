@@ -1199,24 +1199,6 @@ async def regenerate_unposted_tweets(request: TweetRequest):
                     "scheduled_times": scheduled_times
                 }
 
-                # Count and delete all unposted tweets
-                cursor.execute(
-                    """
-                    SELECT COUNT(*) 
-                    FROM posts 
-                    WHERE user_id = %s 
-                    AND account_id = %s 
-                    AND status = 'unposted'
-                    """,
-                    (request.user_id, request.account_id),
-                )
-                unposted_count = cursor.fetchone()[0]
-
-                if unposted_count == 0:
-                    raise HTTPException(
-                        status_code=400,
-                        detail="No unposted tweets found to regenerate.",
-                    )
 
                 cursor.execute(
                     """

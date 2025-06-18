@@ -965,25 +965,6 @@ async def regenerate_post_reply(request: DraftPostCommentRequestRegenratePost):
                     pre_created_tweets
                 )
 
-                # Count and delete all unposted replies
-                cursor.execute(
-                    """
-                    SELECT COUNT(*) 
-                    FROM post_for_reply 
-                    WHERE user_id = %s 
-                    AND account_id = %s 
-                    AND post_status = 'unposted'
-                    """,
-                    (request.user_id, request.account_id),
-                )
-                unposted_count = cursor.fetchone()[0]
-
-                if unposted_count == 0:
-                    raise HTTPException(
-                        status_code=400,
-                        detail="No unposted replies found to regenerate.",
-                    )
-
                 cursor.execute(
                     """
                     DELETE FROM post_for_reply 

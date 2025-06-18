@@ -1309,25 +1309,6 @@ async def regenerate_comments(request: CommentResponseRequest):
                     "scheduled_times": scheduled_times
                 }
 
-                # Count and delete all unposted comment replies
-                cursor.execute(
-                    """
-                    SELECT COUNT(*) 
-                    FROM comments_reply 
-                    WHERE user_id = %s 
-                    AND account_username = %s 
-                    AND post_status = 'unposted'
-                    """,
-                    (request.user_id, request.account_id),
-                )
-                unposted_count = cursor.fetchone()[0]
-
-                if unposted_count == 0:
-                    raise HTTPException(
-                        status_code=400,
-                        detail="No unposted comment replies found to regenerate.",
-                    )
-
                 # Get all unposted comments that need replies
                 cursor.execute(
                     """
