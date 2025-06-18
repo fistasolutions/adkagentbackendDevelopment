@@ -424,7 +424,7 @@ async def get_compititers_tweets(
 
 def get_next_scheduled_times(posting_days: dict, posting_time: dict, posting_frequency: int, pre_create: int) -> List[str]:
     """
-    Generate a list of scheduled times for posts based on the given parameters.
+    Generate a list of scheduled times for posts based on the new scheduling logic.
     
     Args:
         posting_days: Dict mapping days to boolean values (e.g., {"月": True, "火": False, ...})
@@ -442,12 +442,13 @@ def get_next_scheduled_times(posting_days: dict, posting_time: dict, posting_fre
     
     # Get current time in UTC
     current_time = datetime.utcnow()
+    current_date = current_time.date()
     
     # Get enabled days (days marked as True)
     enabled_days = [day for day, enabled in posting_days.items() if enabled]
     if not enabled_days:
         raise ValueError("No posting days are enabled")
-    print("enabled_days",enabled_days)
+    
     # Get enabled hours (hours marked as True)
     enabled_hours = [int(hour) for hour, enabled in posting_time.items() if enabled]
     if not enabled_hours:
@@ -458,30 +459,37 @@ def get_next_scheduled_times(posting_days: dict, posting_time: dict, posting_fre
     
     # Calculate total number of posts needed
     total_posts = posting_frequency * pre_create
-    print("total_posts",total_posts)
-    scheduled_times = []
-    current_date = current_time.date()
     
-    while len(scheduled_times) < total_posts:
+    # Get the next posting days
+    next_posting_dates = []
+    current_weekday = current_date.weekday()
+    
+    # Start from the next day
+    check_date = current_date + timedelta(days=1)
+    
+    while len(next_posting_dates) < pre_create:
         # Check if current day is enabled
-        current_day_jp = ["月", "火", "水", "木", "金", "土", "日"][current_date.weekday()]
+        current_day_jp = ["月", "火", "水", "木", "金", "土", "日"][check_date.weekday()]
         
         if current_day_jp in enabled_days:
-            # For each enabled hour on this day
-            for hour in enabled_hours:
-                # Create datetime for this hour
-                post_time = datetime.combine(current_date, datetime.min.time().replace(hour=hour))
-                
-                # Only add if it's in the future
-                if post_time > current_time:
-                    scheduled_times.append(post_time.isoformat() + "Z")
-                    
-                    # If we have enough posts for today, break
-                    if len([t for t in scheduled_times if t.startswith(current_date.isoformat())]) >= posting_frequency:
-                        break
+            next_posting_dates.append(check_date)
         
-        # Move to next day
-        current_date += timedelta(days=1)
+        check_date += timedelta(days=1)
+    
+    # Generate scheduled times for each posting date
+    scheduled_times = []
+    for posting_date in next_posting_dates:
+        for hour in enabled_hours:
+            # Create datetime for this hour
+            post_time = datetime.combine(posting_date, datetime.min.time().replace(hour=hour))
+            
+            # Only add if it's in the future
+            if post_time > current_time:
+                scheduled_times.append(post_time.isoformat() + "Z")
+                
+                # If we have enough posts for today, break
+                if len([t for t in scheduled_times if t.startswith(posting_date.isoformat())]) >= posting_frequency:
+                    break
     
     # Sort and return the scheduled times
     return sorted(scheduled_times)[:total_posts]
@@ -578,7 +586,6 @@ async def generate_tweets(request: TweetRequest):
                     if row[0] and row[1]
                 ]
                 
-                #
                 if not competitor_data:
                     raise HTTPException(
                         status_code=400,
@@ -589,7 +596,6 @@ async def generate_tweets(request: TweetRequest):
                     """
                     SELECT posting_day, posting_time, posting_frequency,posting_time,pre_create,post_mode
                     FROM persona_notify 
-
                     WHERE user_id = %s 
                     AND account_id = %s
                     AND notify_type = 'post'
@@ -630,36 +636,36 @@ async def generate_tweets(request: TweetRequest):
                     "scheduled_times": scheduled_times
                 }
                 
+                # Check for existing future posts
                 current_time = datetime.utcnow()
-                twenty_four_hours_ago = current_time - timedelta(hours=20)
-                
                 cursor.execute(
                     """
                     SELECT COUNT(*) 
                     FROM posts 
                     WHERE user_id = %s 
                     AND account_id = %s 
-                    AND created_at > %s
+                    AND scheduled_time > %s
                     """,
-                    (request.user_id, request.account_id, twenty_four_hours_ago),
+                    (request.user_id, request.account_id, current_time),
                 )
-                recent_tweets_count = cursor.fetchone()[0]
+                future_posts_count = cursor.fetchone()[0]
                 
-                if recent_tweets_count > 0:
+                # Calculate how many more posts we need
+                total_posts_needed = posting_frequency * pre_created_tweets
+                posts_to_generate = total_posts_needed - future_posts_count
+                
+                if posts_to_generate <= 0:
                     raise HTTPException(
-                        status_code=429,  # Too Many Requests
-                        detail="You have already generated tweets in the last 24 minutes. Please wait before generating new tweets.",
+                        status_code=200,
+                        detail="No new posts needed. Future posts are already scheduled.",
                     )
+                
         finally:
             conn.close()
 
         previous_tweets = await get_previous_tweets(request.user_id, request.account_id)
         events = await get_events(request.user_id, request.account_id)
         post_requests = await get_post_requests(request.user_id, request.account_id)
-
-        # Calculate total number of tweets needed
-        total_tweets_needed = posting_frequency * pre_created_tweets
-        print(f"Total tweets needed: {total_tweets_needed}")
         
         # Update the agent's instructions to specify the exact number of tweets needed
         tweet_agent.instructions = get_tweet_agent_instructions(
@@ -674,7 +680,7 @@ async def generate_tweets(request: TweetRequest):
         # Generate tweets with explicit count
         run_result = await Runner.run(
             tweet_agent, 
-            input=f"Create exactly {total_tweets_needed} tweets. Each tweet must be unique and follow the character settings."
+            input=f"Create exactly {posts_to_generate} tweets. Each tweet must be unique and follow the character settings."
         )
         result = run_result.final_output
         
@@ -686,10 +692,10 @@ async def generate_tweets(request: TweetRequest):
             )
         
         # Verify the number of tweets generated
-        if len(result.tweets) != total_tweets_needed:
+        if len(result.tweets) != posts_to_generate:
             raise HTTPException(
                 status_code=500,
-                detail=f"Expected {total_tweets_needed} tweets but got {len(result.tweets)}"
+                detail=f"Expected {posts_to_generate} tweets but got {len(result.tweets)}"
             )
         
         # Save tweets to database
