@@ -1151,10 +1151,11 @@ async def regenerate_unposted_tweets(request: TweetRequest):
                 
                 cursor.execute(
                     """
-                    SELECT posting_day, posting_time, posting_frequency,posting_time,post_mode
+                    SELECT posting_day, posting_time, posting_frequency,posting_time,pre_create,post_mode
                     FROM persona_notify 
                     WHERE user_id = %s 
                     AND account_id = %s
+                    AND notify_type = 'post'
                     """,
                     (request.user_id, request.account_id),
                 )
@@ -1171,13 +1172,31 @@ async def regenerate_unposted_tweets(request: TweetRequest):
                 posting_time = post_settings[1]  # This is a JSON object
                 posting_frequency = parse_posting_frequency(post_settings[2])  # Parse frequency string
                 posting_time = post_settings[3]
-                post_mode = post_settings[4]
+                pre_created_tweets = parse_pre_create_days(post_settings[4])  # Parse Japanese format
+                post_mode = post_settings[5]
+                
+                print("posting_day",posting_day)
+                print("posting_time",posting_time)
+                print("posting_frequency",posting_frequency)
+                print("pre_created_tweets",pre_created_tweets)
+                print("post_mode",post_mode)
+
+                # Get scheduled times based on settings
+                scheduled_times = get_next_scheduled_times(
+                    posting_day,
+                    posting_time,
+                    posting_frequency,
+                    pre_created_tweets
+                )
+                
                 # Format post settings data for the agent
                 post_settings_data = {
                     "posting_day": posting_day,
                     "posting_time": posting_time,
                     "posting_frequency": posting_frequency,
-                    "posting_time": posting_time
+                    "posting_time": posting_time,
+                    "pre_created_tweets": pre_created_tweets,
+                    "scheduled_times": scheduled_times
                 }
 
                 # Count and delete all unposted tweets
@@ -1226,23 +1245,18 @@ async def regenerate_unposted_tweets(request: TweetRequest):
             post_requests
         )
         
-        print("Tweet Agent Instructions:")
-        print(tweet_agent.instructions)
-        print("\n" + "="*80 + "\n")
-        
-        run_result = await Runner.run(tweet_agent, input=f"generate {unposted_count} tweets")
+        total_tweets_needed = posting_frequency * pre_created_tweets
+        run_result = await Runner.run(tweet_agent, input=f"generate {total_tweets_needed} tweets")
         result = run_result.final_output
         
         if not isinstance(result, TweetsOutput):
-            print(f"Unexpected response type: {type(result)}")
-            print(f"Response content: {result}")
             raise HTTPException(
-                status_code=500, detail="Unexpected response format from Tweet Agent"
+                status_code=500, detail="Unexpected response format from Tweet Agent"   
             )
-        if len(result.tweets) != unposted_count:
+        if len(result.tweets) != total_tweets_needed:
             raise HTTPException(
                 status_code=500, 
-                detail=f"Expected {unposted_count} tweets but got {len(result.tweets)}"
+                detail=f"Expected {total_tweets_needed} tweets but got {len(result.tweets)}"
             )
         
         # Save tweets to database
@@ -1253,7 +1267,8 @@ async def regenerate_unposted_tweets(request: TweetRequest):
                 
                 # Save each tweet as a separate row
                 saved_posts = []
-                for tweet in result.tweets:
+                for i, tweet in enumerate(result.tweets):
+                    scheduled_time = scheduled_times[i] if i < len(scheduled_times) else None
                     cursor.execute(
                         """
                         INSERT INTO posts (content, created_at, user_id, account_id, status, scheduled_time,risk_score,recommended_time)
@@ -1266,9 +1281,9 @@ async def regenerate_unposted_tweets(request: TweetRequest):
                             request.user_id,
                             request.account_id,
                             "unposted",
-                            tweet.scheduled_time if str(post_mode).upper() == "TRUE" else None,
+                            scheduled_time if str(post_mode).upper() == "TRUE" else None,
                             tweet.risk_score,
-                            None if str(post_mode).upper() == "TRUE" else tweet.scheduled_time,
+                            None if str(post_mode).upper() == "TRUE" else scheduled_time,
                         ),
                     )
                     post_data = cursor.fetchone()
@@ -1294,7 +1309,7 @@ async def regenerate_unposted_tweets(request: TweetRequest):
         finally:
             conn.close()
         
-        print(f"Successfully regenerated {unposted_count} tweets")
+        print(f"Successfully regenerated {total_tweets_needed} tweets")
         return result
     except HTTPException as he:
         raise he

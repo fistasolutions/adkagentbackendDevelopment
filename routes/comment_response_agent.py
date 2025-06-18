@@ -1239,3 +1239,227 @@ async def generate_draft_comments(request: DraftCommentReplyRequestPost):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+@router.post("/regenerate-comments")
+async def regenerate_comments(request: CommentResponseRequest):
+    """Regenerate all unposted comment replies for a user and account."""
+    print("Regenerating comment replies...")
+    try:
+        # First check for character settings and get competitor data
+        conn = get_connection()
+        try:
+            with conn.cursor() as cursor:
+                # Check for character settings
+                cursor.execute(
+                    """
+                    SELECT character_settings 
+                    FROM personas 
+                    WHERE user_id = %s 
+                    AND account_id = %s
+                    """,
+                    (request.user_id, request.account_id),
+                )
+                character_settings = cursor.fetchone()
+                
+                if not character_settings:
+                    raise HTTPException(
+                        status_code=400,
+                        detail="Character settings not found. Please set up your character settings before generating comment replies.",
+                    )
+
+                cursor.execute(
+                    """
+                    SELECT posting_day, posting_time, posting_frequency, posting_time, pre_create
+                    FROM persona_notify 
+                    WHERE user_id = %s 
+                    AND account_id = %s
+                    AND notify_type = 'commentReply'
+                    """,
+                    (request.user_id, request.account_id),
+                )
+                post_settings = cursor.fetchone()
+                
+                if not post_settings:
+                    raise HTTPException(
+                        status_code=400,
+                        detail="Post settings data not found. Please set up your post settings before generating comment replies.",
+                    )
+                
+                # Parse the post settings
+                posting_day = post_settings[0]  # This is a JSON object
+                posting_time = post_settings[1]  # This is a JSON object
+                posting_frequency = parse_posting_frequency(post_settings[2])  # Parse frequency string
+                posting_time = post_settings[3]
+                pre_create = parse_pre_create_days(post_settings[4])  # Parse Japanese format
+
+                # Get scheduled times based on settings
+                scheduled_times = get_next_scheduled_times(
+                    posting_day,
+                    posting_time,
+                    posting_frequency,
+                    pre_create
+                )
+                
+                # Format post settings data for the agent
+                post_settings_data = {
+                    "posting_day": posting_day,
+                    "posting_time": posting_time,
+                    "posting_frequency": posting_frequency,
+                    "posting_time": posting_time,
+                    "pre_create": pre_create,
+                    "scheduled_times": scheduled_times
+                }
+
+                # Count and delete all unposted comment replies
+                cursor.execute(
+                    """
+                    SELECT COUNT(*) 
+                    FROM comments_reply 
+                    WHERE user_id = %s 
+                    AND account_username = %s 
+                    AND post_status = 'unposted'
+                    """,
+                    (request.user_id, request.account_id),
+                )
+                unposted_count = cursor.fetchone()[0]
+
+                if unposted_count == 0:
+                    raise HTTPException(
+                        status_code=400,
+                        detail="No unposted comment replies found to regenerate.",
+                    )
+
+                # Get all unposted comments that need replies
+                cursor.execute(
+                    """
+                    SELECT c.id, c.original_comment, c.tweet_id, c.commentor_username, c.tweet_url
+                    FROM comments_reply c
+                    WHERE c.user_id = %s 
+                    AND c.account_username = %s 
+                    AND c.post_status = 'unposted'
+                    """,
+                    (request.user_id, request.account_id),
+                )
+                unposted_comments = cursor.fetchall()
+
+                # Delete all unposted comment replies
+                cursor.execute(
+                    """
+                    DELETE FROM comments_reply 
+                    WHERE user_id = %s 
+                    AND account_username = %s 
+                    AND post_status = 'unposted'
+                    """,
+                    (request.user_id, request.account_id),
+                )
+                conn.commit()
+                
+        finally:
+            conn.close()
+
+        # Get templates for comment replies
+        templates = await get_template_text(request.user_id, request.account_id)
+        
+        # Process each comment and generate new replies
+        conn = get_connection()
+        try:
+            with conn.cursor() as cursor:
+                current_time = datetime.utcnow()
+                saved_replies = []
+                
+                for i, comment in enumerate(unposted_comments):
+                    # Get scheduled time from the list of available times
+                    scheduled_time = scheduled_times[i % len(scheduled_times)] if scheduled_times else datetime.utcnow()
+                    
+                    # Generate response using template or suggested response
+                    response_text = None
+                    
+                    # First try to use templates if available
+                    if templates and templates:
+                        template = random.choice(templates)
+                        if template and template.strip():
+                            response_text = template
+                            print(f"Using template response: {response_text}")
+                    
+                    # Only use AI generation if no templates are available
+                    if not response_text:
+                        print("No templates available, using AI generation")
+                        # Use the comment analysis agent to generate a response
+                        analysis_input = str([{
+                            "tweet_id": comment[2],
+                            "tweet_text": "",  # We don't have the original tweet text
+                            "comment": comment[1],
+                            "username": comment[3],
+                            "comment_id": comment[0]
+                        }])
+                        
+                        analysis_result = await Runner.run(
+                            comment_analysis_agent,
+                            input=analysis_input
+                        )
+                        analysis_output = analysis_result.final_output
+                        if isinstance(analysis_output, str):
+                            analysis_output = json.loads(analysis_output)
+                        if not isinstance(analysis_output, AnalysisOutput):
+                            analysis_output = AnalysisOutput(**analysis_output)
+                        
+                        if analysis_output.comments and analysis_output.comments[0].suggested_response:
+                            response_text = analysis_output.comments[0].suggested_response
+                            print(f"Using AI generated response: {response_text}")
+                        else:
+                            print("No response could be generated, skipping comment")
+                            continue  # Skip if no response could be generated
+
+                    # Save the new reply
+                    cursor.execute(
+                        """
+                        INSERT INTO comments_reply 
+                        (reply_text, risk_score, user_id, account_username, schedule_time, 
+                         commentor_username, tweet_id, original_comment, tweet_url, comment_id)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                        RETURNING id, reply_text, schedule_time, risk_score
+                        """,
+                        (
+                            response_text,
+                            20,  # Default risk score
+                            request.user_id,
+                            request.account_id,
+                            scheduled_time,
+                            comment[3],  # commentor_username
+                            comment[2],  # tweet_id
+                            comment[1],  # original_comment
+                            comment[4],  # tweet_url
+                            comment[0]   # comment_id
+                        )
+                    )
+                    reply_data = cursor.fetchone()
+                    saved_replies.append({
+                        "id": reply_data[0],
+                        "reply_text": reply_data[1],
+                        "scheduled_time": reply_data[2],
+                        "risk_score": reply_data[3]
+                    })
+                
+                conn.commit()
+                
+                return {
+                    "message": f"Successfully regenerated {len(saved_replies)} comment replies",
+                    "replies": saved_replies
+                }
+                
+        except Exception as db_error:
+            print(f"Database error: {str(db_error)}")
+            raise HTTPException(
+                status_code=500,
+                detail=f"Failed to save comment replies to database: {str(db_error)}",
+            )
+        finally:
+            conn.close()
+            
+    except HTTPException as he:
+        raise he
+    except Exception as e:
+        print(f"Error regenerating comment replies: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail=f"Failed to regenerate comment replies: {str(e)}"
+        )
+

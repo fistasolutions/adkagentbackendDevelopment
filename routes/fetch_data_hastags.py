@@ -17,6 +17,10 @@ from agent.draft_post_comment_agent import DraftPostCommentAgent, DraftPostComme
 
 
 
+class DraftPostCommentRequestRegenratePost(BaseModel):
+    user_id: str
+    account_id: str
+
 class DraftPostCommentRequestPost(BaseModel):
     previous_comment: str
     num_drafts: int
@@ -895,6 +899,270 @@ async def generate_post_comment(request: DraftPostCommentRequestPost):
 
 class DraftPostCommentResponse(BaseModel):
     draft_tweets: List[str]
+ 
+    
+    
+
+@router.post("/regenerate-post-reply")
+async def regenerate_post_reply(request: DraftPostCommentRequestRegenratePost):
+    """Regenerate all unposted replies for a user and account."""
+    print("Regenerating unposted replies...")
+    try:
+        # First check for character settings
+        conn = get_connection()
+        try:
+            with conn.cursor() as cursor:
+                # Check for character settings
+                cursor.execute(
+                    """
+                    SELECT character_settings 
+                    FROM personas 
+                    WHERE user_id = %s 
+                    AND account_id = %s
+                    """,
+                    (request.user_id, request.account_id),
+                )
+                character_settings = cursor.fetchone()
+                
+                if not character_settings:
+                    raise HTTPException(
+                        status_code=400,
+                        detail="Character settings not found. Please set up your character settings before generating replies.",
+                    )
+
+                # Get post settings
+                cursor.execute(
+                    """
+                    SELECT posting_day, posting_time, posting_frequency, posting_time, pre_create, post_mode
+                    FROM persona_notify 
+                    WHERE user_id = %s 
+                    AND account_id = %s
+                    AND notify_type = 'postReply'
+                    """,
+                    (request.user_id, request.account_id),
+                )
+                post_settings = cursor.fetchone()
+                
+                if not post_settings:
+                    raise HTTPException(
+                        status_code=400,
+                        detail="Post settings data not found. Please set up your post settings before generating replies.",
+                    )
+                
+                # Parse the post settings
+                posting_day = post_settings[0]  # This is a JSON object
+                posting_time = post_settings[1]  # This is a JSON object
+                posting_frequency = parse_frequency_string(post_settings[2])  # Parse frequency string
+                posting_time = post_settings[3]
+                pre_created_tweets = parse_frequency_string(post_settings[4])  # Parse Japanese format
+                post_mode = post_settings[5]
+
+                # Get scheduled times based on settings
+                scheduled_times = get_next_scheduled_times(
+                    posting_day,
+                    posting_time,
+                    posting_frequency,
+                    pre_created_tweets
+                )
+
+                # Count and delete all unposted replies
+                cursor.execute(
+                    """
+                    SELECT COUNT(*) 
+                    FROM post_for_reply 
+                    WHERE user_id = %s 
+                    AND account_id = %s 
+                    AND post_status = 'unposted'
+                    """,
+                    (request.user_id, request.account_id),
+                )
+                unposted_count = cursor.fetchone()[0]
+
+                if unposted_count == 0:
+                    raise HTTPException(
+                        status_code=400,
+                        detail="No unposted replies found to regenerate.",
+                    )
+
+                cursor.execute(
+                    """
+                    DELETE FROM post_for_reply 
+                    WHERE user_id = %s 
+                    AND account_id = %s 
+                    AND post_status = 'unposted'
+                    """,
+                    (request.user_id, request.account_id),
+                )
+                conn.commit()
+
+                # Get target hashtags for this account
+                cursor.execute(
+                    """
+                    SELECT target_hashtag, template_use, template_text
+                    FROM persona_notify 
+                    WHERE account_id = %s 
+                    AND user_id = %s 
+                    AND notify_type = 'postReply'
+                    """,
+                    (request.account_id, request.user_id),
+                )
+                
+                hashtag_result = cursor.fetchone()
+                if not hashtag_result or not hashtag_result[0]:
+                    raise HTTPException(
+                        status_code=400,
+                        detail="No hashtags found for account",
+                    )
+                
+                hashtags = json.loads(hashtag_result[0])
+                template_use = hashtag_result[1]
+                template_text = hashtag_result[2]
+
+                # Calculate total tweets needed
+                total_tweets_needed = posting_frequency * pre_created_tweets
+                
+                # Fetch tweets for each hashtag
+                all_tweets = []
+                for hashtag in hashtags:
+                    try:
+                        hashtag_value = hashtag.lstrip('#')
+                        tweet_list = fetch_tweets_for_hashtag(hashtag_value, max_results=10)
+                        if tweet_list:
+                            all_tweets.extend(tweet_list)
+                    except Exception as e:
+                        print(f"Error processing hashtag {hashtag}: {str(e)}")
+                        continue
+
+                if not all_tweets:
+                    raise HTTPException(
+                        status_code=400,
+                        detail="No tweets found for any hashtags",
+                    )
+
+                # Ensure we have the exact number of tweets needed
+                if len(all_tweets) > total_tweets_needed:
+                    import random
+                    all_tweets = random.sample(all_tweets, total_tweets_needed)
+
+                # Generate and save replies
+                current_time = datetime.utcnow()
+                for i, tweet in enumerate(all_tweets):
+                    try:
+                        # Generate reply using the reply generation agent
+                        if template_use and template_text:
+                            # If template is enabled, use template text directly
+                            try:
+                                # Parse template_text as JSON array if it's a string
+                                if isinstance(template_text, str):
+                                    template_list = json.loads(template_text)
+                                else:
+                                    template_list = template_text
+                                
+                                # Randomly select one template from the list
+                                import random
+                                reply_text = random.choice(template_list)
+                                risk_score = 0  # Set default risk score for template text
+                            except Exception as e:
+                                print(f"Error processing template text: {str(e)}")
+                                # Fallback to AI generation if template processing fails
+                                reply_request = ReplyGenerationRequest(
+                                    tweet_id=tweet['id'],
+                                    tweet_text=tweet['text'],
+                                    post_username=tweet['user']['screen_name'],
+                                    character_settings=character_settings[0],
+                                    posting_frequency=posting_frequency,
+                                    pre_create=pre_created_tweets,
+                                    template_use=template_use,
+                                    template_text=template_text,
+                                    posting_day=posting_day,
+                                    posting_time=posting_time
+                                )
+                                reply = await generate_reply(reply_request)
+                                reply_text = reply.reply_text
+                                risk_score = reply.risk_score
+                        else:
+                            # Generate reply using the reply generation agent
+                            reply_request = ReplyGenerationRequest(
+                                tweet_id=tweet['id'],
+                                tweet_text=tweet['text'],
+                                post_username=tweet['user']['screen_name'],
+                                character_settings=character_settings[0],
+                                posting_frequency=posting_frequency,
+                                pre_create=pre_created_tweets,
+                                template_use=template_use,
+                                template_text=template_text,
+                                posting_day=posting_day,
+                                posting_time=posting_time
+                            )
+                            
+                            reply = await generate_reply(reply_request)
+                            reply_text = reply.reply_text
+                            risk_score = reply.risk_score
+                        
+                        # Get scheduled time for this tweet
+                        scheduled_time = scheduled_times[i] if i < len(scheduled_times) else None
+                        
+                        cursor.execute(
+                            """
+                            INSERT INTO post_for_reply (
+                                created_at, 
+                                tweet_id, 
+                                text, 
+                                post_username, 
+                                account_id, 
+                                user_id,
+                                reply_text,
+                                risk_score,
+                                schedule_time,
+                                author_profile,
+                                recommended_time
+                            )
+                            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                            RETURNING id, tweet_id, reply_text, risk_score, schedule_time
+                            """,
+                            (
+                                current_time,
+                                tweet['id'],
+                                tweet['text'],
+                                tweet['user']['screen_name'],
+                                request.account_id,
+                                request.user_id,
+                                reply_text,
+                                risk_score,
+                                scheduled_time if str(post_mode).upper() == "TRUE" else None,
+                                tweet['user']['profile_image_url'],
+                                None if str(post_mode).upper() == "TRUE" else scheduled_time,
+                            ),
+                        )
+                        reply_data = cursor.fetchone()
+                        
+                    except Exception as e:
+                        print(f"Error processing tweet {tweet['id']}: {str(e)}")
+                        continue
+
+                conn.commit()
+                
+                return {
+                    "message": f"Successfully regenerated {len(all_tweets)} replies",
+                    "status": "success"
+                }
+                
+        except Exception as db_error:
+            print(f"Database error: {str(db_error)}")
+            raise HTTPException(
+                status_code=500,
+                detail=f"Failed to regenerate replies: {str(db_error)}",
+            )
+        finally:
+            conn.close()
+            
+    except HTTPException as he:
+        raise he
+    except Exception as e:
+        print(f"Error regenerating replies: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail=f"Failed to regenerate replies: {str(e)}"
+        )
  
     
     
