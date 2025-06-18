@@ -586,12 +586,6 @@ async def generate_tweets(request: TweetRequest):
                     if row[0] and row[1]
                 ]
                 
-                if not competitor_data:
-                    raise HTTPException(
-                        status_code=400,
-                        detail="Competitor data not found. Please set up your competitor data before generating tweets.",
-                    )
-                
                 cursor.execute(
                     """
                     SELECT posting_day, posting_time, posting_frequency,posting_time,pre_create,post_mode
