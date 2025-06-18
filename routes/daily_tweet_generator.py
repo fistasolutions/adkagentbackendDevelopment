@@ -13,6 +13,7 @@ from fastapi import APIRouter, HTTPException, Depends, Response
 from db.db import get_connection
 import json
 from agent.risk_assessment_agent import RiskAssessmentAgent, RiskAssessmentRequest
+from collections import Counter
 
 load_dotenv()
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
@@ -543,6 +544,41 @@ def clean_tweet_content(content: str) -> str:
     # Remove null characters and other control characters
     return ''.join(char for char in content if ord(char) >= 32 or char in '\n\r\t')
 
+def get_next_scheduled_times_rolling(
+    posting_days, posting_time, posting_frequency, pre_create, existing_scheduled_times
+):
+    """
+    Generate a rolling window of scheduled times, always keeping pre_create enabled days (each with posting_frequency posts) in the future.
+    """
+    enabled_days = [day for day, enabled in posting_days.items() if enabled]
+    enabled_hours = sorted([int(hour) for hour, enabled in posting_time.items() if enabled])
+    current_time = datetime.utcnow()
+    current_date = current_time.date()
+    days_needed = pre_create
+
+    # Parse existing_scheduled_times into a dict: {date: count}
+    existing_dates = [datetime.fromisoformat(t.replace('Z', '')) for t in existing_scheduled_times]
+    # Only consider posts scheduled strictly after now
+    future_dates = [dt.date() for dt in existing_dates if dt > current_time]
+    date_counts = Counter(future_dates)
+
+    # Find the next N enabled days that need more posts
+    scheduled_times = []
+    check_date = current_date + timedelta(days=1)
+    filled_days = 0
+    while filled_days < days_needed:
+        day_jp = ["月", "火", "水", "木", "金", "土", "日"][check_date.weekday()]
+        if day_jp in enabled_days:
+            count = date_counts.get(check_date, 0)
+            for i in range(count, posting_frequency):
+                hour = enabled_hours[i % len(enabled_hours)]
+                post_time = datetime.combine(check_date, datetime.min.time().replace(hour=hour))
+                if post_time > current_time:
+                    scheduled_times.append(post_time.isoformat() + "Z")
+            filled_days += 1
+        check_date += timedelta(days=1)
+    return scheduled_times
+
 @router.post("/generate-daily-tweets", response_model=TweetsOutput)
 async def generate_tweets(request: TweetRequest):
     """Generate tweets using the Tweet Agent."""
@@ -611,15 +647,31 @@ async def generate_tweets(request: TweetRequest):
                 posting_time = post_settings[3]
                 pre_created_tweets = parse_pre_create_days(post_settings[4])  # Parse Japanese format
                 post_mode = post_settings[5]
-                
-                # Get scheduled times based on settings
-                scheduled_times = get_next_scheduled_times(
+
+                # Fetch all future scheduled posts for this user/account
+                current_time = datetime.utcnow()
+                cursor.execute(
+                    """
+                    SELECT scheduled_time 
+                    FROM posts 
+                    WHERE user_id = %s 
+                    AND status = 'unposted'
+                    AND account_id = %s 
+                    AND scheduled_time > %s
+                    """,
+                    (request.user_id, request.account_id, current_time),
+                )
+                existing_scheduled_times = [row[0].strftime("%Y-%m-%dT%H:%M:%SZ") for row in cursor.fetchall() if row[0]]
+
+                # Use rolling scheduling logic
+                scheduled_times = get_next_scheduled_times_rolling(
                     posting_day,
                     posting_time,
                     posting_frequency,
-                    pre_created_tweets
+                    pre_created_tweets,
+                    existing_scheduled_times
                 )
-                
+
                 # Format post settings data for the agent
                 post_settings_data = {
                     "posting_day": posting_day,
@@ -629,31 +681,13 @@ async def generate_tweets(request: TweetRequest):
                     "pre_created_tweets": pre_created_tweets,
                     "scheduled_times": scheduled_times
                 }
-                
-                # Check for existing future posts
-                current_time = datetime.utcnow()
-                cursor.execute(
-                    """
-                    SELECT COUNT(*) 
-                    FROM posts 
-                    WHERE user_id = %s 
-                    AND account_id = %s 
-                    AND scheduled_time > %s
-                    """,
-                    (request.user_id, request.account_id, current_time),
-                )
-                future_posts_count = cursor.fetchone()[0]
-                
-                # Calculate how many more posts we need
-                total_posts_needed = posting_frequency * pre_created_tweets
-                posts_to_generate = total_posts_needed - future_posts_count
-                
+
+                posts_to_generate = len(scheduled_times)
                 if posts_to_generate <= 0:
                     raise HTTPException(
                         status_code=200,
                         detail="No new posts needed. Future posts are already scheduled.",
                     )
-                
         finally:
             conn.close()
 
