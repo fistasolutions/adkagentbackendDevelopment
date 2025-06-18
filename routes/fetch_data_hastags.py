@@ -355,21 +355,6 @@ async def cron_fetch_hashtag_tweets():
                             all_tweets = random.sample(all_tweets, total_tweets_needed)
 
                         try:
-                            cursor.execute("""
-                                INSERT INTO post_data (created_at, update_at, data_json, user_id)
-                                VALUES (%s, %s, %s, %s)
-                            """, (
-                                datetime.utcnow(),
-                                datetime.utcnow(),
-                                json.dumps({
-                                    'hashtags': [h.lstrip('#') for h in hashtags],
-                                    'tweet_count': len(all_tweets),
-                                    'tweets': all_tweets,
-                                    'account_id': account_id
-                                }),
-                                user_id
-                            ))
-
                             for tweet_index, tweet in enumerate(all_tweets):
                                 try:
                                     # Generate reply using the reply generation agent

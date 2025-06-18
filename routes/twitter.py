@@ -199,7 +199,8 @@ async def analyze_user(username: str, userId: int):
                     "expansions": "attachments.media_keys",
                     "media.fields": "url,preview_image_url,type,height,width",
                     "start_time": start_time_str,
-                    "end_time": end_time_str
+                    "end_time": end_time_str,
+                    "exclude": "replies"
                 }
                 
                 if next_token:
