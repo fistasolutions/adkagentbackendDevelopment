@@ -60,14 +60,13 @@ async def insert_post(request: PostInsertRequest):
     Insert a new post into the posts table using raw SQL query.
     All fields are optional except content.
     """
+    conn = None
     try:
-        # Perform risk assessment but don't block content
         risk_agent = RiskAssessmentAgent()
         risk_assessment = await risk_agent.get_response(
             RiskAssessmentRequest(content=request.content)
         )
 
-        print(risk_assessment)
         conn = get_connection()
         with conn.cursor() as cursor:
             cursor.execute(
@@ -93,8 +92,6 @@ async def insert_post(request: PostInsertRequest):
             )
         )
 
-        print("scheduling_responsrisk_assessment", risk_assessment)
-        conn = get_connection()
         with conn.cursor() as cursor:
             # Build the dynamic SQL query based on provided fields
             fields = ["content"]
@@ -204,5 +201,5 @@ async def insert_post(request: PostInsertRequest):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
     finally:
-        if "conn" in locals():
+        if conn is not None:
             conn.close()
