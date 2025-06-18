@@ -16,6 +16,7 @@ async def update_comments_reply_time(request: TimeUpdateRequest):
     """Update times in comments_reply table based on type."""
     try:
         conn = get_connection()
+        print("request", request)
         with conn.cursor() as cursor:
             if request.type:
                 # Set recommended_time into schedule_time, skip if schedule_time exists
@@ -24,6 +25,7 @@ async def update_comments_reply_time(request: TimeUpdateRequest):
                     SET schedule_time = recommended_time
                     WHERE user_id = %s AND account_username = %s
                     AND schedule_time IS NULL
+                    AND post_status = 'unposted'
                     RETURNING id, schedule_time, recommended_time
                 """, (request.user_id, request.account_id))
             else:
@@ -33,6 +35,7 @@ async def update_comments_reply_time(request: TimeUpdateRequest):
                     SET recommended_time = DATE(schedule_time),
                         schedule_time = NULL
                     WHERE user_id = %s AND account_username = %s
+                    AND post_status = 'unposted'
                     RETURNING id, schedule_time, recommended_time
                 """, (request.user_id, request.account_id))
             
@@ -111,6 +114,7 @@ async def update_post_reply_time(request: TimeUpdateRequest):
                     SET schedule_time = recommended_time
                     WHERE user_id = %s AND account_id = %s
                     AND schedule_time IS NULL
+                    AND post_status = 'unposted'
                     RETURNING id, schedule_time, recommended_time
                 """, (request.user_id, request.account_id))
             else:
@@ -120,6 +124,7 @@ async def update_post_reply_time(request: TimeUpdateRequest):
                     SET recommended_time = DATE(schedule_time),
                         schedule_time = NULL
                     WHERE user_id = %s AND account_id = %s
+                    AND post_status = 'unposted'
                     RETURNING id, schedule_time, recommended_time
                 """, (request.user_id, request.account_id))
             
