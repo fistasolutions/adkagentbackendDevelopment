@@ -601,7 +601,7 @@ async def test_analyze_and_respond_to_comments():
             with conn.cursor() as cursor:
                 cursor.execute(
                     """
-                    SELECT posting_day, posting_time, posting_frequency, posting_time, pre_create
+                    SELECT posting_day, posting_time, posting_frequency, posting_time, pre_create,post_mode
                     FROM persona_notify 
                     WHERE notify_type = 'commentReply'
                     AND user_id = %s 
@@ -617,7 +617,7 @@ async def test_analyze_and_respond_to_comments():
                 posting_frequency = parse_posting_frequency(post_settings[2])
                 posting_time = post_settings[3]
                 pre_create = parse_pre_create_days(post_settings[4])
-                
+                post_mode = post_settings[5]
                 # Get scheduled times for responses
                 scheduled_times = get_next_scheduled_times(
                     posting_day,
@@ -719,8 +719,8 @@ async def test_analyze_and_respond_to_comments():
                             cursor.execute(
                                 """
                                 INSERT INTO comments_reply 
-                                (reply_text, risk_score, user_id, account_username, schedule_time, commentor_username, tweet_id, original_comment, tweet_url, comment_id)
-                                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                                (reply_text, risk_score, user_id, account_username, schedule_time, commentor_username, tweet_id, original_comment, tweet_url, comment_id,recommended_time)
+                                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s,%s)
                                 RETURNING id
                                 """,
                                 (
@@ -728,12 +728,13 @@ async def test_analyze_and_respond_to_comments():
                                     20,
                                     user_id,
                                     account_id,
-                                    scheduled_time,
+                                     scheduled_time if str(post_mode).upper() == "TRUE" else None,
                                     comment.commentor_username,
                                     post.posted_id,
                                     comment.comment_text,
                                     tweet_url,
-                                    comment.comment_id
+                                    comment.comment_id,
+                                    None if str(post_mode).upper() == "TRUE" else scheduled_time,
                                 )
                             )
                             reply_id = cursor.fetchone()[0]
