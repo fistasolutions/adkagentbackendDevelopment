@@ -476,6 +476,7 @@ async def get_posts_with_comments(
                     continue
 
                 oauth = get_twitter_auth(credentials)
+                print("oauth", oauth)
 
                 # Update comments_fetched_at immediately after fetching post
                 with conn.cursor() as update_cursor:

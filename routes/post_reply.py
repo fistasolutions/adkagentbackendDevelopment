@@ -83,6 +83,7 @@ async def post_replies():
                     try:
                         # Fetch credentials for this account
                         credentials = get_twitter_credentials(account_id)
+                        print("credentials", credentials)
                         auth = get_twitter_auth(credentials)
                         # Post the reply
                         response = post_tweet_reply(tweet_id, reply_text, auth)

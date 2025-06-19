@@ -519,6 +519,10 @@ async def post_scheduled_replies():
                     api_key, api_secret, access_token, access_token_secret = keys
 
                     # Create OAuth 1.0a session with account-specific keys
+                    print("api_key", api_key)
+                    print("api_secret", api_secret)
+                    print("access_token", access_token)
+                    print("access_token_secret", access_token_secret)
                     oauth = OAuth1Session(
                         api_key,
                         client_secret=api_secret,
@@ -534,7 +538,7 @@ async def post_scheduled_replies():
                             "in_reply_to_tweet_id": tweet_id
                         }
                     }
-                    
+                    print("oauth", oauth)
                     # Post the reply
                     reply_response = oauth.post(
                         url,

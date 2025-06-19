@@ -86,6 +86,7 @@ def process_tweets(tweets_to_process):
             continue
         # Fetch credentials for this account
         creds = get_twitter_credentials(account_id)
+        print("creds", creds)
         auth = OAuth1(
             creds["api_key"],
             creds["api_secret"],
