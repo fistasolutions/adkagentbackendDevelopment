@@ -89,7 +89,7 @@ async def create_tweet_agent(account_id: int):
         agents[agent_id] = agent
         
         initial_tweet = await agent.get_response(
-            message="Generate a tweet that introduces yourself and your role",
+            message="Generate a tweet that introduces yourself and your role.you have generate 6 tweets",
         )
         
         return {

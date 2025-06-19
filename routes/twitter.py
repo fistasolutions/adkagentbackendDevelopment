@@ -23,19 +23,7 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
-# Twitter API credentials
-TWITTER_API_KEY = os.getenv("TWITTER_API_KEY")
-TWITTER_API_SECRET = os.getenv("TWITTER_API_SECRET")
-TWITTER_ACCESS_TOKEN = os.getenv("TWITTER_ACCESS_TOKEN")
-TWITTER_ACCESS_TOKEN_SECRET = os.getenv("TWITTER_ACCESS_TOKEN_SECRET")
 
-def get_twitter_auth():
-    return OAuth1(
-        TWITTER_API_KEY,
-        TWITTER_API_SECRET,
-        TWITTER_ACCESS_TOKEN,
-        TWITTER_ACCESS_TOKEN_SECRET
-    )
 
 class UsersRequest(BaseModel):
     accounts: dict[str, str]  # Changed from List[str] to dict[str, str]
@@ -68,15 +56,16 @@ CLIENT_KWARGS = {
     "verify": True
 }
 
-async def get_user_id(username: str) -> str:
+async def get_user_id(username: str, creds: dict) -> str:
     try:
         logger.info(f"Attempting to get user ID for username: {username}")
+        print(creds)
         # Create OAuth1Session for authentication
         oauth = OAuth1Session(
-            TWITTER_API_KEY,
-            client_secret=TWITTER_API_SECRET,
-            resource_owner_key=TWITTER_ACCESS_TOKEN,
-            resource_owner_secret=TWITTER_ACCESS_TOKEN_SECRET
+            creds["api_key"],
+            client_secret=creds["api_secret"],
+            resource_owner_key=creds["access_token"],
+            resource_owner_secret=creds["access_token_secret"]
         )
         
         url = f"https://api.twitter.com/2/users/by/username/{username}"
@@ -93,58 +82,39 @@ async def get_user_id(username: str) -> str:
         logger.error(f"Error getting user ID: {str(e)}")
         raise
 
-async def get_tweet_replies(tweet_id: str, author_username: str):
-    search_url = "https://api.twitter.com/2/tweets/search/recent"
-    query = f"conversation_id:{tweet_id} to:{author_username}"
 
-    # Create OAuth1Session for authentication
-    oauth = OAuth1Session(
-        TWITTER_API_KEY,
-        client_secret=TWITTER_API_SECRET,
-        resource_owner_key=TWITTER_ACCESS_TOKEN,
-        resource_owner_secret=TWITTER_ACCESS_TOKEN_SECRET
-    )
-
-    params = {
-        "query": query,
-        "tweet.fields": "created_at,author_id,conversation_id,in_reply_to_user_id",
-        "expansions": "author_id,in_reply_to_user_id",
-        "user.fields": "username,name,profile_image_url",
-        "max_results": 100
-    }
-
-    response = oauth.get(search_url, params=params)
-
-    if response.status_code != 200:
-        return []
-
-    data = response.json()
-    tweets = data.get("data", [])
-    users = {user["id"]: user for user in data.get("includes", {}).get("users", [])}
-
-    replies = []
-    for tweet in tweets:
-        if tweet.get("in_reply_to_user_id") != author_username:
-            continue
-            
-        user = users.get(tweet["author_id"], {})
-        print(user)
-        replies.append({
-            "reply_text": tweet["text"],
-            "reply_time": tweet["created_at"],
-            "replied_by": {
-                "username": user.get("username"),
-                "name": user.get("name"),
-                "profile_image": user.get("profile_image_url")
+def get_twitter_credentials(account_id):
+    conn = get_connection()
+    try:
+        with conn.cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT bearer_token, twitter_access_token, twitter_api_key, twitter_api_secret, twitter_access_token_secret
+                FROM twitter_account  
+                WHERE account_id = %s
+                """,
+                (account_id,)
+            )
+            result = cursor.fetchone()
+            if not result:
+                raise Exception(f"No Twitter credentials found for account_id {account_id}")
+            return {
+                "bearer_token": result[0],
+                "access_token": result[1],
+                "api_key": result[2],
+                "api_secret": result[3],
+                "access_token_secret": result[4]
             }
-        })
-    return replies
-    
+    finally:
+        conn.close()
+
 @router.get("/analyze-user/")
-async def analyze_user(username: str, userId: int):
+async def analyze_user(username: str, userId: int, account_id: int):
     logger.info(f"Starting analysis for user: {username} with ID: {userId}")
     conn = None
     try:
+        creds = get_twitter_credentials(account_id)
+        print(creds)
         # First check if we have recent data
         logger.info("Checking for cached data in database")
         conn = get_connection()
@@ -172,7 +142,7 @@ async def analyze_user(username: str, userId: int):
         # If no recent data, try Twitter API
         logger.info("No recent cached data found, attempting Twitter API")
         try:
-            user_id = await get_user_id(username)
+            user_id = await get_user_id(username, creds)
             logger.info(f"Retrieved Twitter user ID: {user_id}")
             end_time = datetime.datetime.utcnow()
             start_time = end_time - datetime.timedelta(days=7)
@@ -182,13 +152,13 @@ async def analyze_user(username: str, userId: int):
 
             all_tweets = []
             next_token = None
-
+            
             # Create OAuth1Session for authentication
             oauth = OAuth1Session(
-                TWITTER_API_KEY,
-                client_secret=TWITTER_API_SECRET,
-                resource_owner_key=TWITTER_ACCESS_TOKEN,
-                resource_owner_secret=TWITTER_ACCESS_TOKEN_SECRET
+                creds["api_key"],
+                client_secret=creds["api_secret"],
+                resource_owner_key=creds["access_token"],
+                resource_owner_secret=creds["access_token_secret"]
             )
 
             while True:
@@ -293,7 +263,7 @@ async def analyze_user(username: str, userId: int):
             
             
 @router.get("/analyze-user-replies")
-async def analyze_user_replies(username: str, user_id: int):
+async def analyze_user_replies(username: str, user_id: int, account_id: int):
     try:
         conn = get_connection()
         with conn.cursor() as cursor:
@@ -345,32 +315,38 @@ async def analyze_user_replies(username: str, user_id: int):
             for tweet_id, tweet_text in tweet_map.items():
                 url = f"https://api.twitter.com/2/tweets/search/recent?query=conversation_id:{tweet_id}&tweet.fields=author_id,in_reply_to_user_id,conversation_id,created_at&expansions=author_id&user.fields=username"
                 
-                async with httpx.AsyncClient() as client:
-                    response = await client.get(url, auth=get_twitter_auth())
-                    response.raise_for_status()
-                    twitter_data = response.json()
-                    
-                    # Create a map of author_id -> username
-                    author_map = {user["id"]: user["username"] for user in twitter_data.get("includes", {}).get("users", [])}
-                    
-                    # Extract replies
-                    replies = []
-                    for tweet in twitter_data.get("data", []):
-                        author_id = tweet["author_id"]
-                        commenter_name = author_map.get(author_id, "unknown_user")
-                        # Include the tweet creation time from Twitter API
-                        replies.append({
-                            "username": commenter_name,
-                            "text": tweet["text"],
-                            "created_at": tweet.get("created_at")
-                        })
-                    
-                    if replies:  # Only add if there are replies
-                        all_replies.append({
-                            "tweet_id": tweet_id,
-                            "tweet_text": tweet_text,
-                            "replies": replies
-                        })
+                creds = get_twitter_credentials(account_id)
+                oauth = OAuth1Session(
+                    creds["api_key"],
+                    client_secret=creds["api_secret"],
+                    resource_owner_key=creds["access_token"],
+                    resource_owner_secret=creds["access_token_secret"]
+                )
+                response = oauth.get(url)
+                response.raise_for_status()
+                twitter_data = response.json()
+                
+                # Create a map of author_id -> username
+                author_map = {user["id"]: user["username"] for user in twitter_data.get("includes", {}).get("users", [])}
+                
+                # Extract replies
+                replies = []
+                for tweet in twitter_data.get("data", []):
+                    author_id = tweet["author_id"]
+                    commenter_name = author_map.get(author_id, "unknown_user")
+                    # Include the tweet creation time from Twitter API
+                    replies.append({
+                        "username": commenter_name,
+                        "text": tweet["text"],
+                        "created_at": tweet.get("created_at")
+                    })
+                
+                if replies:  # Only add if there are replies
+                    all_replies.append({
+                        "tweet_id": tweet_id,
+                        "tweet_text": tweet_text,
+                        "replies": replies
+                    })
             
             # Save all replies to comments table
             if all_replies:
@@ -400,10 +376,11 @@ async def analyze_user_replies(username: str, user_id: int):
             logger.info("Database connection closed")
 
 @router.get("/followers/{username}")
-async def get_user_followers(username: str):
+async def get_user_followers(username: str, account_id: int):
     try:
         # First get the user ID
-        user_id = await get_user_id(username)
+        creds = get_twitter_credentials(account_id)
+        user_id = await get_user_id(username, creds)
         
         # Now get the followers
         url = f"{TWITTER_API_URL}/{user_id}/followers"
@@ -412,54 +389,30 @@ async def get_user_followers(username: str):
             "user.fields": "username,name,profile_image_url"
         }
         
-        async with httpx.AsyncClient() as client:
-            resp = await client.get(url, auth=get_twitter_auth(), params=params)
+        # Get Twitter credentials
+        oauth = OAuth1Session(
+            creds["api_key"],
+            client_secret=creds["api_secret"],
+            resource_owner_key=creds["access_token"],
+            resource_owner_secret=creds["access_token_secret"]
+        )
+        resp = oauth.get(url, params=params)
+        
+        if resp.status_code != 200:
+            raise HTTPException(status_code=resp.status_code, detail=f"Twitter API Error: {resp.text}")
             
-            if resp.status_code != 200:
-                raise HTTPException(status_code=resp.status_code, detail=f"Twitter API Error: {resp.text}")
-                
-            data = resp.json()
-            followers = data.get("data", [])
-            
-            return {
-                "username": username,
-                "total_followers": len(followers),
-                "followers": followers
-            }
+        data = resp.json()
+        followers = data.get("data", [])
+        
+        return {
+            "username": username,
+            "total_followers": len(followers),
+            "followers": followers
+        }
             
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.get("/trends/japan")
-async def get_japan_trends():
-    """Get trending topics in Japan"""
-    try:
-        url = "https://api.twitter.com/1.1/trends/place.json"
-        params = {
-            "id": 23424856  # WOEID for Japan
-        }
-        
-        async with httpx.AsyncClient() as client:
-            resp = await client.get(url, auth=get_twitter_auth(), params=params)
-            
-            if resp.status_code != 200:
-                raise HTTPException(status_code=resp.status_code, detail=f"Twitter API Error: {resp.text}")
-                
-            data = resp.json()
-            if not data or not isinstance(data, list) or len(data) == 0:
-                return {"trends": []}
-                
-            trends = data[0].get("trends", [])
-            
-            return {
-                "location": "Japan",
-                "as_of": data[0].get("as_of"),
-                "created_at": data[0].get("created_at"),
-                "trends": trends
-            }
-            
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
 
 async def make_twitter_request(client, url, headers, params, max_retries=5):
     """
@@ -560,26 +513,10 @@ async def analyze_multiple_accounts(request: MultipleAccountsRequest):
                     
                     # If no recent data, proceed with Twitter API call
                     user_id = None
-                    for attempt in range(5):  # Try up to 5 times
-                        try:
-                            user_id = await get_user_id(username)
-                            break
-                        except Exception as e:
-                            if "Too Many Requests" in str(e):
-                                # Get reset time from response headers
-                                reset_time = int(e.response.headers.get('x-rate-limit-reset', 0))
-                                if reset_time > 0:
-                                    await wait_for_rate_limit_reset(reset_time)
-                                    continue
-                            if attempt < 4:
-                                backoff_time = (2 ** attempt) * 5
-                                logger.warning(f"Error getting user ID for {username}. Retrying in {backoff_time} seconds...")
-                                await asyncio.sleep(backoff_time)
-                                continue
-                            raise
-                    
-                    if not user_id:
-                        raise Exception("Failed to get user ID after retries")
+                    creds = get_twitter_credentials(request.account_id)
+                    print(username,creds)
+                    user_id = await get_user_id(username, creds)
+                    print(user_id)
                     
                     # Set time range for last 7 days
                     end_time = datetime.datetime.now(datetime.timezone.utc)
@@ -590,82 +527,88 @@ async def analyze_multiple_accounts(request: MultipleAccountsRequest):
                     all_tweets = []
                     next_token = None
                     
-                    async with httpx.AsyncClient() as client:
-                        while True:
-                            try:
-                                url = f"https://api.twitter.com/2/users/{user_id}/tweets"
-                                params = {
-                                    "max_results": 100,
-                                    "tweet.fields": "created_at,public_metrics,conversation_id,attachments,entities",
-                                    "expansions": "attachments.media_keys",
-                                    "media.fields": "url,preview_image_url,type,height,width",
-                                    "start_time": start_time_str,
-                                    "end_time": end_time_str
+                    while True:
+                        try:
+                            url = f"https://api.twitter.com/2/users/{user_id}/tweets"
+                            params = {
+                                "max_results": 100,
+                                "tweet.fields": "created_at,public_metrics,conversation_id,attachments,entities",
+                                "expansions": "attachments.media_keys",
+                                "media.fields": "url,preview_image_url,type,height,width",
+                                "start_time": start_time_str,
+                                "end_time": end_time_str
+                            }
+                            
+                            if next_token:
+                                params["pagination_token"] = next_token
+                            
+                            creds = get_twitter_credentials(request.account_id)
+                            oauth = OAuth1Session(
+                                creds["api_key"],
+                                client_secret=creds["api_secret"],
+                                resource_owner_key=creds["access_token"],
+                                resource_owner_secret=creds["access_token_secret"]
+                            )
+                            resp = oauth.get(url, params=params)
+                            
+                            if resp.status_code == 429:  # Rate limit exceeded
+                                reset_time = int(resp.headers.get('x-rate-limit-reset', 0))
+                                if reset_time > 0:
+                                    await wait_for_rate_limit_reset(reset_time)
+                                    continue
+                                else:
+                                    raise Exception("Rate limit exceeded but no reset time provided")
+                            
+                            if resp.status_code != 200:
+                                raise Exception(f"Twitter API Error: {resp.text}")
+                            
+                            data = resp.json()
+                            tweets = data.get("data", [])
+                            media = {m["media_key"]: m for m in data.get("includes", {}).get("media", [])}
+                            
+                            for tweet in tweets:
+                                metrics = tweet.get("public_metrics", {})
+                                
+                                tweet_media = []
+                                if "attachments" in tweet and "media_keys" in tweet["attachments"]:
+                                    for media_key in tweet["attachments"]["media_keys"]:
+                                        if media_key in media:
+                                            media_item = media[media_key]
+                                            tweet_media.append({
+                                                "type": media_item["type"],
+                                                "url": media_item.get("url"),
+                                                "preview_url": media_item.get("preview_image_url"),
+                                                "dimensions": {
+                                                    "height": media_item.get("height"),
+                                                    "width": media_item.get("width")
+                                                }
+                                            })
+                                                
+                                tweet_data = {
+                                    "tweet_id": tweet["id"],
+                                    "text": tweet["text"],
+                                    "created_at": tweet["created_at"],
+                                    "like_count": metrics.get("like_count", 0),
+                                    "retweet_count": metrics.get("retweet_count", 0),
+                                    "reply_count": metrics.get("reply_count", 0),
+                                    "quote_count": metrics.get("quote_count", 0),
+                                    "impression_count": metrics.get("impression_count", 0),
+                                    "media": tweet_media
                                 }
                                 
-                                if next_token:
-                                    params["pagination_token"] = next_token
+                                all_tweets.append(tweet_data)
+                            
+                            next_token = data.get("meta", {}).get("next_token")
+                            if not next_token:
+                                break
                                 
-                                resp = await client.get(url, auth=get_twitter_auth(), params=params)
-                                
-                                if resp.status_code == 429:  # Rate limit exceeded
-                                    reset_time = int(resp.headers.get('x-rate-limit-reset', 0))
-                                    if reset_time > 0:
-                                        await wait_for_rate_limit_reset(reset_time)
-                                        continue
-                                    else:
-                                        raise Exception("Rate limit exceeded but no reset time provided")
-                                
-                                if resp.status_code != 200:
-                                    raise Exception(f"Twitter API Error: {resp.text}")
-                                
-                                data = resp.json()
-                                tweets = data.get("data", [])
-                                media = {m["media_key"]: m for m in data.get("includes", {}).get("media", [])}
-                                
-                                for tweet in tweets:
-                                    metrics = tweet.get("public_metrics", {})
-                                    
-                                    tweet_media = []
-                                    if "attachments" in tweet and "media_keys" in tweet["attachments"]:
-                                        for media_key in tweet["attachments"]["media_keys"]:
-                                            if media_key in media:
-                                                media_item = media[media_key]
-                                                tweet_media.append({
-                                                    "type": media_item["type"],
-                                                    "url": media_item.get("url"),
-                                                    "preview_url": media_item.get("preview_image_url"),
-                                                    "dimensions": {
-                                                        "height": media_item.get("height"),
-                                                        "width": media_item.get("width")
-                                                    }
-                                                })
-                                                
-                                    tweet_data = {
-                                        "tweet_id": tweet["id"],
-                                        "text": tweet["text"],
-                                        "created_at": tweet["created_at"],
-                                        "like_count": metrics.get("like_count", 0),
-                                        "retweet_count": metrics.get("retweet_count", 0),
-                                        "reply_count": metrics.get("reply_count", 0),
-                                        "quote_count": metrics.get("quote_count", 0),
-                                        "impression_count": metrics.get("impression_count", 0),
-                                        "media": tweet_media
-                                    }
-                                    
-                                    all_tweets.append(tweet_data)
-                                
-                                next_token = data.get("meta", {}).get("next_token")
-                                if not next_token:
-                                    break
-                                    
-                            except Exception as e:
-                                if "Too Many Requests" in str(e):
-                                    reset_time = int(e.response.headers.get('x-rate-limit-reset', 0))
-                                    if reset_time > 0:
-                                        await wait_for_rate_limit_reset(reset_time)
-                                        continue
-                                raise
+                        except Exception as e:
+                            if "Too Many Requests" in str(e):
+                                reset_time = int(e.response.headers.get('x-rate-limit-reset', 0))
+                                if reset_time > 0:
+                                    await wait_for_rate_limit_reset(reset_time)
+                                    continue
+                            raise
                     
                     # Calculate aggregated metrics
                     total_tweets = len(all_tweets)
@@ -881,7 +824,7 @@ async def get_monthly_competitor_metrics(user_id: int, account_id: int):
             logger.info("Database connection closed")
 
 @router.get("/tweet/{tweet_id}")
-async def get_tweet_details(tweet_id: str):
+async def get_tweet_details(tweet_id: str, account_id: int):
     """
     Get only likes and comments count for a specific tweet
     """
@@ -892,20 +835,26 @@ async def get_tweet_details(tweet_id: str):
             "tweet.fields": "public_metrics"
         }
 
-        async with httpx.AsyncClient() as client:
-            # Get tweet details
-            resp = await client.get(url, auth=get_twitter_auth(), params=params)
-            if resp.status_code != 200:
-                raise HTTPException(status_code=resp.status_code, detail=f"Twitter API Error: {resp.text}")
+        # Get tweet details
+        creds = get_twitter_credentials(account_id)
+        oauth = OAuth1Session(
+            creds["api_key"],
+            client_secret=creds["api_secret"],
+            resource_owner_key=creds["access_token"],
+            resource_owner_secret=creds["access_token_secret"]
+        )
+        resp = oauth.get(url, params=params)
+        if resp.status_code != 200:
+            raise HTTPException(status_code=resp.status_code, detail=f"Twitter API Error: {resp.text}")
 
-            data = resp.json()
-            tweet_data = data.get("data", {})
-            metrics = tweet_data.get("public_metrics", {})
+        data = resp.json()
+        tweet_data = data.get("data", {})
+        metrics = tweet_data.get("public_metrics", {})
 
-            return {
-                "likes": metrics.get("like_count", 0),
-                "comments": metrics.get("reply_count", 0)
-            }
+        return {
+            "likes": metrics.get("like_count", 0),
+            "comments": metrics.get("reply_count", 0)
+        }
 
     except Exception as e:
         logger.error(f"Error in get_tweet_details: {str(e)}", exc_info=True)
@@ -944,7 +893,8 @@ async def get_user_retweets(username: str, user_id: int, account_id: int):
                 }
 
         # If no recent data, fetch from Twitter API
-        twitter_user_id = await get_user_id(username)
+        creds = get_twitter_credentials(account_id)
+        twitter_user_id = await get_user_id(username, creds)
         
         # Set time range for last 7 days
         end_time = datetime.datetime.now(datetime.timezone.utc)
@@ -966,51 +916,57 @@ async def get_user_retweets(username: str, user_id: int, account_id: int):
         all_retweets = []
         next_token = None
         
-        async with httpx.AsyncClient() as client:
-            while True:
-                if next_token:
-                    params["pagination_token"] = next_token
-                
-                resp = await client.get(url, auth=get_twitter_auth(), params=params)
-                
-                if resp.status_code != 200:
-                    raise HTTPException(status_code=resp.status_code, detail=f"Twitter API Error: {resp.text}")
-                
-                data = resp.json()
-                tweets = data.get("data", [])
-                
-                # Create maps for referenced tweets and users
-                referenced_tweets = {tweet["id"]: tweet for tweet in data.get("includes", {}).get("tweets", [])}
-                users = {user["id"]: user for user in data.get("includes", {}).get("users", [])}
-                
-                for tweet in tweets:
-                    # Check if this is a retweet
-                    if "referenced_tweets" in tweet:
-                        for ref in tweet["referenced_tweets"]:
-                            if ref["type"] == "retweeted":
-                                original_tweet = referenced_tweets.get(ref["id"])
-                                if original_tweet:
-                                    original_author = users.get(original_tweet["author_id"])
-                                    retweet_data = {
-                                        "retweet_id": tweet["id"],
-                                        "retweeted_at": tweet["created_at"],
-                                        "original_tweet": {
-                                            "id": original_tweet["id"],
-                                            "text": original_tweet["text"],
-                                            "created_at": original_tweet["created_at"],
-                                            "metrics": original_tweet.get("public_metrics", {}),
-                                            "author": {
-                                                "username": original_author.get("username"),
-                                                "name": original_author.get("name"),
-                                                "profile_image_url": original_author.get("profile_image_url")
-                                            } if original_author else None
-                                        }
+        while True:
+            if next_token:
+                params["pagination_token"] = next_token
+            
+            creds = get_twitter_credentials(account_id)
+            oauth = OAuth1Session(
+                creds["api_key"],
+                client_secret=creds["api_secret"],
+                resource_owner_key=creds["access_token"],
+                resource_owner_secret=creds["access_token_secret"]
+            )
+            resp = oauth.get(url, params=params)
+            
+            if resp.status_code != 200:
+                raise HTTPException(status_code=resp.status_code, detail=f"Twitter API Error: {resp.text}")
+            
+            data = resp.json()
+            tweets = data.get("data", [])
+            
+            # Create maps for referenced tweets and users
+            referenced_tweets = {tweet["id"]: tweet for tweet in data.get("includes", {}).get("tweets", [])}
+            users = {user["id"]: user for user in data.get("includes", {}).get("users", [])}
+            
+            for tweet in tweets:
+                # Check if this is a retweet
+                if "referenced_tweets" in tweet:
+                    for ref in tweet["referenced_tweets"]:
+                        if ref["type"] == "retweeted":
+                            original_tweet = referenced_tweets.get(ref["id"])
+                            if original_tweet:
+                                original_author = users.get(original_tweet["author_id"])
+                                retweet_data = {
+                                    "retweet_id": tweet["id"],
+                                    "retweeted_at": tweet["created_at"],
+                                    "original_tweet": {
+                                        "id": original_tweet["id"],
+                                        "text": original_tweet["text"],
+                                        "created_at": original_tweet["created_at"],
+                                        "metrics": original_tweet.get("public_metrics", {}),
+                                        "author": {
+                                            "username": original_author.get("username"),
+                                            "name": original_author.get("name"),
+                                            "profile_image_url": original_author.get("profile_image_url")
+                                        } if original_author else None
                                     }
-                                    all_retweets.append(retweet_data)
-                
-                next_token = data.get("meta", {}).get("next_token")
-                if not next_token:
-                    break
+                                }
+                                all_retweets.append(retweet_data)
+            
+            next_token = data.get("meta", {}).get("next_token")
+            if not next_token:
+                break
         
         # Prepare response data
         response_data = {
