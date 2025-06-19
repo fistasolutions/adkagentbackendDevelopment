@@ -437,7 +437,7 @@ async def cron_fetch_hashtag_tweets():
                                         risk_score,
                                         scheduled_times[tweet_index] if str(post_mode).upper() == "TRUE" else None,
                                         tweet['user']['profile_image_url'],
-                                        None  # Adding missing recommended_time value
+                                        None if str(post_mode).upper() == "TRUE" else scheduled_time,
                                     ))
                                 except Exception as e:
                                     print(f"Error processing tweet {tweet['id']}: {str(e)}")
