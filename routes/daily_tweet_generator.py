@@ -650,18 +650,38 @@ async def generate_tweets(request: TweetRequest):
 
                 # Fetch all future scheduled posts for this user/account
                 current_time = datetime.utcnow()
-                cursor.execute(
-                    """
-                    SELECT scheduled_time 
-                    FROM posts 
-                    WHERE user_id = %s 
-                    AND status = 'unposted'
-                    AND account_id = %s 
-                    AND scheduled_time > %s
-                    """,
-                    (request.user_id, request.account_id, current_time),
-                )
-                existing_scheduled_times = [row[0].strftime("%Y-%m-%dT%H:%M:%SZ") for row in cursor.fetchall() if row[0]]
+                
+                # Use different time field based on post_mode
+                if str(post_mode).upper() == "TRUE":
+                    # When post_mode is True, check scheduled_time
+                    cursor.execute(
+                        """
+                        SELECT scheduled_time, recommended_time
+                        FROM posts 
+                        WHERE user_id = %s 
+                        AND status = 'unposted'
+                        AND account_id = %s 
+                        AND scheduled_time > %s
+                        """,
+                        (request.user_id, request.account_id, current_time),
+                    )
+                    existing_scheduled_times = [row[0].strftime("%Y-%m-%dT%H:%M:%SZ") for row in cursor.fetchall() if row[0]]
+                else:
+                    # When post_mode is False, check recommended_time
+                    cursor.execute(
+                        """
+                        SELECT scheduled_time, recommended_time
+                        FROM posts 
+                        WHERE user_id = %s 
+                        AND status = 'unposted'
+                        AND account_id = %s 
+                        AND recommended_time > %s
+                        """,
+                        (request.user_id, request.account_id, current_time),
+                    )
+                    existing_scheduled_times = [row[1].strftime("%Y-%m-%dT%H:%M:%SZ") for row in cursor.fetchall() if row[1]]
+                
+                print("post_mode", post_mode)
 
                 # Use rolling scheduling logic
                 scheduled_times = get_next_scheduled_times_rolling(
