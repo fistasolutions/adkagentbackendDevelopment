@@ -25,19 +25,49 @@ def post_single_tweet(text: str, auth: OAuth1) -> dict:
     url = "https://api.twitter.com/2/tweets"
     payload = {"text": text}
     
-    response = requests.post(url, auth=auth, json=payload)
+    print(f"[CRON][DEBUG] Making POST request to Twitter API")
+    print(f"[CRON][DEBUG] URL: {url}")
+    print(f"[CRON][DEBUG] Payload: {payload}")
     
-    if response.status_code == 201:
-        return response.json()
-    elif response.status_code == 429:  
+    try:
+        response = requests.post(url, auth=auth, json=payload, timeout=30)
+        print(f"[CRON][DEBUG] Response status code: {response.status_code}")
+        print(f"[CRON][DEBUG] Response headers: {dict(response.headers)}")
+        print(f"[CRON][DEBUG] Response text: {response.text}")
+        
+        if response.status_code == 201:
+            response_json = response.json()
+            print(f"[CRON][DEBUG] Success response JSON: {response_json}")
+            return response_json
+        elif response.status_code == 429:  
+            print(f"[CRON][ERROR] Rate limit exceeded: {response.text}")
+            raise HTTPException(
+                status_code=429,
+                detail="Twitter rate limit exceeded. Please try again later."
+            )
+        else:
+            print(f"[CRON][ERROR] Twitter API error: {response.status_code} - {response.text}")
+            raise HTTPException(
+                status_code=response.status_code,
+                detail=f"Failed to post tweet: {response.text}"
+            )
+    except requests.exceptions.Timeout:
+        print(f"[CRON][ERROR] Request timeout after 30 seconds")
         raise HTTPException(
-            status_code=429,
-            detail="Twitter rate limit exceeded. Please try again later."
+            status_code=408,
+            detail="Request timeout - Twitter API took too long to respond"
         )
-    else:
+    except requests.exceptions.ConnectionError as e:
+        print(f"[CRON][ERROR] Connection error: {str(e)}")
         raise HTTPException(
-            status_code=response.status_code,
-            detail=f"Failed to post tweet: {response.text}"
+            status_code=503,
+            detail=f"Connection error: {str(e)}"
+        )
+    except Exception as e:
+        print(f"[CRON][ERROR] Unexpected error in post_single_tweet: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Unexpected error posting tweet: {str(e)}"
         )
 
 def get_twitter_credentials(account_id):
@@ -85,18 +115,25 @@ def process_tweets(tweets_to_process):
             })
             continue
         # Fetch credentials for this account
+        print(f"[CRON][DEBUG] Fetching credentials for account_id: {account_id}")
         creds = get_twitter_credentials(account_id)
         print("creds", creds)
+        print(f"[CRON][DEBUG] Creating OAuth1 auth object")
         auth = OAuth1(
             creds["api_key"],
             creds["api_secret"],
             creds["access_token"],
             creds["access_token_secret"]
         )
+        print(f"[CRON][DEBUG] OAuth1 auth object created successfully")
         while retry_count < MAX_RETRIES:
             try:
+                print(f"[CRON][DEBUG] Attempting to post tweet (attempt {retry_count + 1}/{MAX_RETRIES})")
+                print(f"[CRON][DEBUG] Tweet content: {content}")
                 tweet_response = post_single_tweet(content, auth)
+                print(f"[CRON][DEBUG] Tweet posted successfully! Response: {tweet_response}")
                 tweet_id_twitter = tweet_response["data"]["id"]
+                print(f"[CRON][DEBUG] Twitter tweet ID: {tweet_id_twitter}")
                 conn = get_connection()
                 try:
                     with conn.cursor() as cursor:
@@ -111,14 +148,17 @@ def process_tweets(tweets_to_process):
                             (tweet_id_twitter, tweet_id)
                         )
                         conn.commit()
+                        print(f"[CRON][DEBUG] Database updated successfully for tweet_id: {tweet_id}")
                 finally:
                     conn.close()
                 posted_count += 1
                 time.sleep(2)  
                 break
             except HTTPException as e:
+                print(f"[CRON][ERROR] HTTPException occurred: {e.status_code} - {e.detail}")
                 if e.status_code == 429:  
                     if retry_count < MAX_RETRIES - 1:
+                        print(f"[CRON][DEBUG] Rate limited, waiting {RETRY_DELAY} seconds before retry")
                         time.sleep(RETRY_DELAY)
                         retry_count += 1
                         continue
@@ -128,11 +168,16 @@ def process_tweets(tweets_to_process):
                 })
                 break
             except Exception as e:
+                print(f"[CRON][ERROR] Unexpected exception occurred: {str(e)}")
+                print(f"[CRON][ERROR] Exception type: {type(e).__name__}")
+                import traceback
+                print(f"[CRON][ERROR] Full traceback: {traceback.format_exc()}")
                 failed_tweets.append({
                     "tweet_id": tweet_id,
                     "error": str(e)
                 })
                 break
+    print(f"[CRON][DEBUG] process_tweets completed. Posted: {posted_count}, Failed: {len(failed_tweets)}")
     return posted_count, failed_tweets
 
 def is_auto_post_enabled(user_id, account_id):
@@ -223,6 +268,10 @@ def process_due_scheduled_tweets():
                 if tweets_to_post:
                     posted_count, failed_tweets = process_tweets(tweets_to_post)
                     print(f"[CRON] Posted {posted_count} scheduled tweets. {len(failed_tweets)} failed.")
+                    if failed_tweets:
+                        print(f"[CRON][ERROR] Failed tweets details:")
+                        for failed_tweet in failed_tweets:
+                            print(f"[CRON][ERROR] Tweet ID {failed_tweet['tweet_id']}: {failed_tweet['error']}")
                 else:
                     print("[CRON] No scheduled tweets to process (auto post disabled for all).")
                     cursor.execute(
