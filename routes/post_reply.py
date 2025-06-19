@@ -7,26 +7,21 @@ import os
 from dotenv import load_dotenv
 import time
 from datetime import datetime, timezone
+from routes.post_on_twitter import get_twitter_credentials
 
 load_dotenv()
 router = APIRouter()
-
-# Twitter API credentials
-TWITTER_API_KEY = os.getenv("TWITTER_API_KEY")
-TWITTER_API_SECRET = os.getenv("TWITTER_API_SECRET")
-TWITTER_ACCESS_TOKEN = os.getenv("TWITTER_ACCESS_TOKEN")
-TWITTER_ACCESS_TOKEN_SECRET = os.getenv("TWITTER_ACCESS_TOKEN_SECRET")
 
 class PostReplyRequest(BaseModel):
     user_id: str
     account_id: str
 
-def get_twitter_auth():
+def get_twitter_auth(credentials):
     return OAuth1(
-        TWITTER_API_KEY,
-        TWITTER_API_SECRET,
-        TWITTER_ACCESS_TOKEN,
-        TWITTER_ACCESS_TOKEN_SECRET
+        credentials["api_key"],
+        credentials["api_secret"],
+        credentials["access_token"],
+        credentials["access_token_secret"]
     )
 
 def post_tweet_reply(tweet_id: str, reply_text: str, auth: OAuth1) -> dict:
@@ -63,35 +58,35 @@ async def post_replies():
         conn = get_connection()
         try:
             with conn.cursor() as cursor:
-                # Get all unposted replies
+                # Get all unposted replies (include account_id in select)
                 cursor.execute(
                     """
-                    SELECT id, comment_id, reply_text 
+                    SELECT id, comment_id, reply_text, account_username 
                     FROM comments_reply 
                     WHERE post_status = 'unposted'
-                    AND (schedule_time <= NOW()) OR (recommended_time <= NOW())
+                    AND (schedule_time <= NOW())
                     ORDER BY COALESCE(schedule_time, created_at) ASC
                     """
                 )
                 unposted_replies = cursor.fetchall()
+                print("unposted_replies", unposted_replies)
                 if not unposted_replies:
                     return {
                         "status": "success",
                         "message": "No unposted replies found",
                         "posted_count": 0
                     }
-                
-                auth = get_twitter_auth()
                 posted_count = 0
                 failed_replies = []
-                
                 for reply in unposted_replies:
-                    reply_id, tweet_id, reply_text = reply
+                    reply_id, tweet_id, reply_text, account_id = reply
                     try:
+                        # Fetch credentials for this account
+                        credentials = get_twitter_credentials(account_id)
+                        auth = get_twitter_auth(credentials)
                         # Post the reply
                         response = post_tweet_reply(tweet_id, reply_text, auth)
                         reply_tweet_id = response["data"]["id"]
-                        
                         # Update the status in database
                         cursor.execute(
                             """
@@ -103,25 +98,20 @@ async def post_replies():
                             (reply_tweet_id, reply_id)
                         )
                         posted_count += 1
-                        
                         # Add delay to respect rate limits
                         time.sleep(2)
-                        
                     except Exception as e:
                         failed_replies.append({
                             "reply_id": reply_id,
                             "error": str(e)
                         })
-                
                 conn.commit()
-                
                 return {
                     "status": "success",
                     "posted_count": posted_count,
                     "failed_replies": failed_replies,
                     "message": f"Successfully posted {posted_count} replies. {len(failed_replies)} replies failed."
                 }
-                
         except Exception as db_error:
             raise HTTPException(
                 status_code=500,
@@ -129,7 +119,6 @@ async def post_replies():
             )
         finally:
             conn.close()
-            
     except Exception as e:
         raise HTTPException(
             status_code=500,

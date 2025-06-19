@@ -441,12 +441,53 @@ async def get_posts_with_comments(
             posts = cursor.fetchall()
             
             result = []
-            oauth = get_twitter_auth()
-            
             for post in posts:
                 posted_id = post[5]  # post[5] is posted_id
+                account_id = post[3]  # post[3] is account_id
                 if not posted_id:
                     continue
+
+                # Fetch credentials for this account
+                def get_twitter_credentials_for_account(account_id):
+                    conn_inner = get_connection()
+                    try:
+                        with conn_inner.cursor() as cursor_inner:
+                            cursor_inner.execute(
+                                """
+                                SELECT bearer_token, twitter_access_token, twitter_api_key, twitter_api_secret, twitter_access_token_secret
+                                FROM twitter_account  
+                                WHERE account_id = %s
+                                """,
+                                (account_id,)
+                            )
+                            result_inner = cursor_inner.fetchone()
+                            if not result_inner:
+                                raise Exception(f"No Twitter credentials found for account_id {account_id}")
+                            return {
+                                "bearer_token": result_inner[0],
+                                "access_token": result_inner[1],
+                                "api_key": result_inner[2],
+                                "api_secret": result_inner[3],
+                                "access_token_secret": result_inner[4]
+                            }
+                    finally:
+                        conn_inner.close()
+
+                def get_twitter_auth(credentials):
+                    return OAuth1Session(
+                        credentials["api_key"],
+                        client_secret=credentials["api_secret"],
+                        resource_owner_key=credentials["access_token"],
+                        resource_owner_secret=credentials["access_token_secret"]
+                    )
+
+                try:
+                    credentials = get_twitter_credentials_for_account(account_id)
+                except Exception as e:
+                    print(f"No Twitter credentials found for account_id {account_id}: {str(e)}")
+                    continue
+
+                oauth = get_twitter_auth(credentials)
 
                 # Update comments_fetched_at immediately after fetching post
                 with conn.cursor() as update_cursor:

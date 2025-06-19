@@ -499,12 +499,31 @@ async def post_scheduled_replies():
             
             for reply_id, tweet_id, reply_text, account_id in scheduled_replies:
                 try:
-                    # Create OAuth 1.0a session
+                    # Fetch Twitter keys for this account
+                    cursor.execute("""
+                        SELECT twitter_api_key, twitter_api_secret, twitter_access_token, twitter_access_token_secret
+                        FROM twitter_account
+                        WHERE account_id = %s
+                    """, (account_id,))
+                    keys = cursor.fetchone()
+                    if not keys:
+                        print(f"No Twitter keys found for account {account_id}")
+                        results.append({
+                            'reply_id': reply_id,
+                            'tweet_id': tweet_id,
+                            'status': 'error',
+                            'error': 'No Twitter keys found for account'
+                        })
+                        continue
+
+                    api_key, api_secret, access_token, access_token_secret = keys
+
+                    # Create OAuth 1.0a session with account-specific keys
                     oauth = OAuth1Session(
-                        TWITTER_API_KEY,
-                        client_secret=TWITTER_API_SECRET,
-                        resource_owner_key=TWITTER_ACCESS_TOKEN,
-                        resource_owner_secret=TWITTER_ACCESS_TOKEN_SECRET
+                        api_key,
+                        client_secret=api_secret,
+                        resource_owner_key=access_token,
+                        resource_owner_secret=access_token_secret
                     )
                     
                     # Prepare the request
