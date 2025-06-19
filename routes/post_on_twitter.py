@@ -15,22 +15,12 @@ class PostTweetsRequest(BaseModel):
 class ScheduledTweetRequest(BaseModel):
     user_id: int
     account_id: int
-TWITTER_API_KEY = os.getenv("TWITTER_API_KEY")
-TWITTER_API_SECRET = os.getenv("TWITTER_API_SECRET")
-TWITTER_ACCESS_TOKEN = os.getenv("TWITTER_ACCESS_TOKEN")
-TWITTER_ACCESS_TOKEN_SECRET = os.getenv("TWITTER_ACCESS_TOKEN_SECRET")
 RATE_LIMIT_WINDOW = 15 * 60  
 MAX_TWEETS_PER_WINDOW = 50  
 RETRY_DELAY = 60  
 MAX_RETRIES = 3
 SCHEDULE_CHECK_INTERVAL = 30  
-def get_twitter_auth():
-    return OAuth1(
-        TWITTER_API_KEY,
-        TWITTER_API_SECRET,
-        TWITTER_ACCESS_TOKEN,
-        TWITTER_ACCESS_TOKEN_SECRET
-    )
+
 def post_single_tweet(text: str, auth: OAuth1) -> dict:
     url = "https://api.twitter.com/2/tweets"
     payload = {"text": text}
@@ -49,15 +39,59 @@ def post_single_tweet(text: str, auth: OAuth1) -> dict:
             status_code=response.status_code,
             detail=f"Failed to post tweet: {response.text}"
         )
+
+def get_twitter_credentials(account_id):
+    conn = get_connection()
+    try:
+        with conn.cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT bearer_token, twitter_access_token, twitter_api_key, twitter_api_secret, twitter_access_token_secret
+                FROM twitter_account  
+                WHERE account_id = %s
+                """,
+                (account_id,)
+            )
+            result = cursor.fetchone()
+            if not result:
+                raise Exception(f"No Twitter credentials found for account_id {account_id}")
+            return {
+                "bearer_token": result[0],
+                "access_token": result[1],
+                "api_key": result[2],
+                "api_secret": result[3],
+                "access_token_secret": result[4]
+            }
+    finally:
+        conn.close()
+
 def process_tweets(tweets_to_process):
-    auth = get_twitter_auth()
     posted_count = 0
     failed_tweets = []
     print(f"[CRON][DEBUG] process_tweets called with: {tweets_to_process}")
     for row in tweets_to_process:
         tweet_id = row[0]
         content = row[1]
+        # Try to get account_id from row (if available)
+        try:
+            account_id = row[3]
+        except IndexError:
+            account_id = None
         retry_count = 0
+        if account_id is None:
+            failed_tweets.append({
+                "tweet_id": tweet_id,
+                "error": "account_id missing in tweet row"
+            })
+            continue
+        # Fetch credentials for this account
+        creds = get_twitter_credentials(account_id)
+        auth = OAuth1(
+            creds["api_key"],
+            creds["api_secret"],
+            creds["access_token"],
+            creds["access_token_secret"]
+        )
         while retry_count < MAX_RETRIES:
             try:
                 tweet_response = post_single_tweet(content, auth)
@@ -99,6 +133,7 @@ def process_tweets(tweets_to_process):
                 })
                 break
     return posted_count, failed_tweets
+
 def is_auto_post_enabled(user_id, account_id):
     conn = get_connection()
     try:
@@ -114,6 +149,7 @@ def is_auto_post_enabled(user_id, account_id):
             return result and result[0]  # True/False or None
     finally:
         conn.close()
+
 @router.post("/post_tweets")
 async def post_tweets(request: PostTweetsRequest):
     try:
