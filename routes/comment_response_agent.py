@@ -398,18 +398,6 @@ async def get_template_text(user_id: str, account_id: str) -> Optional[List[str]
     finally:
         conn.close()
 
-TWITTER_API_KEY = os.getenv('TWITTER_API_KEY')
-TWITTER_API_SECRET = os.getenv('TWITTER_API_SECRET')
-TWITTER_ACCESS_TOKEN = os.getenv('TWITTER_ACCESS_TOKEN')
-TWITTER_ACCESS_TOKEN_SECRET = os.getenv('TWITTER_ACCESS_TOKEN_SECRET')
-
-def get_twitter_auth():
-    return OAuth1Session(
-        TWITTER_API_KEY,
-        client_secret=TWITTER_API_SECRET,
-        resource_owner_key=TWITTER_ACCESS_TOKEN,
-        resource_owner_secret=TWITTER_ACCESS_TOKEN_SECRET
-    )
 
 
 async def get_posts_with_comments(

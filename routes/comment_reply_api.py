@@ -13,12 +13,6 @@ load_dotenv()
 
 router = APIRouter()
 
-# Remove static Twitter API credentials
-# TWITTER_API_KEY = os.getenv('TWITTER_API_KEY')
-# TWITTER_API_SECRET = os.getenv('TWITTER_API_SECRET')
-# TWITTER_ACCESS_TOKEN = os.getenv('TWITTER_ACCESS_TOKEN')
-# TWITTER_ACCESS_TOKEN_SECRET = os.getenv('TWITTER_ACCESS_TOKEN_SECRET')
-
 def get_twitter_credentials_for_account(account_id):
     conn = get_connection()
     try:
