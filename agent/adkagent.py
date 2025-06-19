@@ -13,6 +13,10 @@ class CharacterSettings(BaseModel):
 class Tweet(BaseModel):
     tweet1: str
     tweet2: str
+    tweet3: str
+    tweet4: str
+    tweet5: str
+    tweet6: str
 
 class TweetAgentSettings(BaseModel):
     id: Optional[str] = None
@@ -54,16 +58,16 @@ class ADKAgent:
         return f"""You are a tweet generation assistant.
         {character_context}
         if language user mention its language, then translate the tweets to the language of the user.If user not mention its language, then translate the tweets to the language Japanese.
-        Generate two tweets that match the character context above.
+        Generate six tweets that match the character context above.
         Keep tweets under 280 characters.
-        Return the tweets in a structured format with tweet1 and tweet2 fields."""
+        Return the tweets in a structured format with tweet1, tweet2, tweet3, tweet4, tweet5, tweet6 fields."""
     
     async def get_response(self, message: str) -> Tweet:
         """
         Get a response from the agent using the SDK's Runner.
             
         Returns:
-            Tweet: The agent's response containing two tweets
+            Tweet: The agent's response containing six tweets
         """
         try:
             result = await Runner.run(

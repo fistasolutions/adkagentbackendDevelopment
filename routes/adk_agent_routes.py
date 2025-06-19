@@ -57,6 +57,7 @@ async def get_characterSettings(persona_id: str) -> CharacterSettings:
 @router.post("/tweet-agents/{account_id}")
 async def create_tweet_agent(account_id: int):
     """Create a new tweet generation agent"""
+    print(account_id)
     try:
         # First get the character settings from database
         conn = get_connection()
@@ -91,7 +92,7 @@ async def create_tweet_agent(account_id: int):
         initial_tweet = await agent.get_response(
             message="Generate a tweet that introduces yourself and your role.you have generate 6 tweets",
         )
-        
+        print(initial_tweet)
         return {
             "tweet": initial_tweet,
         }
