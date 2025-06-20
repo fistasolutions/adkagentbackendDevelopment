@@ -7,6 +7,7 @@ import os
 from dotenv import load_dotenv
 import time
 from datetime import datetime, timedelta, timezone
+import json
 load_dotenv()
 router = APIRouter()
 class PostTweetsRequest(BaseModel):
@@ -21,19 +22,104 @@ RETRY_DELAY = 60
 MAX_RETRIES = 3
 SCHEDULE_CHECK_INTERVAL = 30  
 
-def post_single_tweet(text: str, auth: OAuth1) -> dict:
+def validate_image_url(image_url: str) -> bool:
+    """Validate if the image URL is accessible and returns an image"""
+    try:
+        response = requests.head(image_url, timeout=10)
+        if response.status_code == 200:
+            content_type = response.headers.get('content-type', '').lower()
+            return content_type.startswith('image/')
+        return False
+    except Exception as e:
+        print(f"[CRON][DEBUG] Image URL validation failed for {image_url}: {str(e)}")
+        return False
+
+def upload_media_to_twitter(image_url: str, auth: OAuth1) -> str:
+    """Upload a single image to Twitter and return the media_id"""
+    try:
+        # Validate the image URL first
+        if not validate_image_url(image_url):
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid or inaccessible image URL: {image_url}"
+            )
+        
+        # Download the image from the URL
+        print(f"[CRON][DEBUG] Downloading image from: {image_url}")
+        image_response = requests.get(image_url, timeout=30)
+        image_response.raise_for_status()
+        
+        # Upload to Twitter
+        upload_url = "https://upload.twitter.com/1.1/media/upload.json"
+        
+        # Twitter API v1.1 media upload
+        files = {'media': ('image.jpg', image_response.content, 'image/jpeg')}
+        
+        response = requests.post(upload_url, auth=auth, files=files, timeout=30)
+        
+        if response.status_code == 200:
+            media_data = response.json()
+            media_id = media_data['media_id_string']
+            print(f"[CRON][DEBUG] Media uploaded successfully. Media ID: {media_id}")
+            return media_id
+        else:
+            print(f"[CRON][ERROR] Media upload failed: {response.status_code} - {response.text}")
+            raise HTTPException(
+                status_code=response.status_code,
+                detail=f"Failed to upload media: {response.text}"
+            )
+    except Exception as e:
+        print(f"[CRON][ERROR] Error uploading media: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error uploading media: {str(e)}"
+        )
+
+def post_single_tweet(text: str, auth: OAuth1, image_urls: list = None) -> dict:
+    """Post a tweet with optional images"""
     url = "https://api.twitter.com/2/tweets"
     payload = {"text": text}
     
-    print(f"[CRON][DEBUG] Making POST request to Twitter API")
-    print(f"[CRON][DEBUG] URL: {url}")
-    print(f"[CRON][DEBUG] Payload: {payload}")
-    
+    # If images are provided, upload them and add media_ids to payload
+    if image_urls and len(image_urls) > 0:
+        try:
+            # Filter out empty URLs and limit to Twitter's maximum of 4 images
+            valid_image_urls = [url.strip() for url in image_urls if url and url.strip()]
+            if len(valid_image_urls) > 4:
+                print(f"[CRON][WARNING] Too many images ({len(valid_image_urls)}), limiting to 4")
+                valid_image_urls = valid_image_urls[:4]
+            
+            if valid_image_urls:
+                media_ids = []
+                failed_images = []
+                
+                for i, image_url in enumerate(valid_image_urls):
+                    try:
+                        print(f"[CRON][DEBUG] Processing image {i+1}/{len(valid_image_urls)}: {image_url}")
+                        media_id = upload_media_to_twitter(image_url, auth)
+                        media_ids.append(media_id)
+                        time.sleep(1)  # Small delay between uploads
+                    except Exception as e:
+                        print(f"[CRON][ERROR] Failed to upload image {i+1}: {str(e)}")
+                        failed_images.append(f"Image {i+1}: {str(e)}")
+                        continue
+                
+                if media_ids:
+                    payload["media"] = {"media_ids": media_ids}
+                    print(f"[CRON][DEBUG] Added {len(media_ids)} media IDs to tweet payload")
+                    if failed_images:
+                        print(f"[CRON][WARNING] Some images failed to upload: {failed_images}")
+                else:
+                    print(f"[CRON][WARNING] All images failed to upload, posting text-only tweet")
+            else:
+                print(f"[CRON][DEBUG] No valid image URLs found, posting text-only tweet")
+                
+        except Exception as e:
+            print(f"[CRON][ERROR] Failed to upload images, posting text-only tweet: {str(e)}")
+            # Continue with text-only tweet if image upload fails
+
     try:
         response = requests.post(url, auth=auth, json=payload, timeout=30)
-        print(f"[CRON][DEBUG] Response status code: {response.status_code}")
-        print(f"[CRON][DEBUG] Response headers: {dict(response.headers)}")
-        print(f"[CRON][DEBUG] Response text: {response.text}")
         
         if response.status_code == 201:
             response_json = response.json()
@@ -102,11 +188,44 @@ def process_tweets(tweets_to_process):
     for row in tweets_to_process:
         tweet_id = row[0]
         content = row[1]
-        # Try to get account_id from row (if available)
-        try:
+        
+        # Determine column layout based on row length
+        # Regular posts: id, content, user_id, account_id, Image_url (5 columns)
+        # Scheduled posts: id, content, user_id, account_id, scheduled_time, Image_url (6 columns)
+        
+        if len(row) == 5:
+            # Regular posts format
             account_id = row[3]
-        except IndexError:
-            account_id = None
+            image_urls_raw = row[4]  # Image_url column
+        elif len(row) == 6:
+            # Scheduled posts format
+            account_id = row[3]
+            image_urls_raw = row[5]  # Image_url column
+        else:
+            # Fallback - try to get account_id from row (if available)
+            try:
+                account_id = row[3]
+            except IndexError:
+                account_id = None
+            image_urls_raw = None
+        
+        # Try to get image_urls from row (if available)
+        image_urls = None
+        try:
+            if image_urls_raw:
+                # Parse the JSON array of image URLs
+                if isinstance(image_urls_raw, str):
+                    image_urls = json.loads(image_urls_raw)
+                elif isinstance(image_urls_raw, list):
+                    image_urls = image_urls_raw
+                print(f"[CRON][DEBUG] Found image URLs: {image_urls}")
+                print(f"[CRON][DEBUG] Number of images to process: {len(image_urls) if image_urls else 0}")
+            else:
+                print(f"[CRON][DEBUG] No image URLs found in database")
+        except (IndexError, json.JSONDecodeError, TypeError) as e:
+            print(f"[CRON][DEBUG] No image URLs found or invalid format: {e}")
+            image_urls = None
+        
         retry_count = 0
         if account_id is None:
             failed_tweets.append({
@@ -130,7 +249,8 @@ def process_tweets(tweets_to_process):
             try:
                 print(f"[CRON][DEBUG] Attempting to post tweet (attempt {retry_count + 1}/{MAX_RETRIES})")
                 print(f"[CRON][DEBUG] Tweet content: {content}")
-                tweet_response = post_single_tweet(content, auth)
+                print(f"[CRON][DEBUG] Image URLs: {image_urls}")
+                tweet_response = post_single_tweet(content, auth, image_urls)
                 print(f"[CRON][DEBUG] Tweet posted successfully! Response: {tweet_response}")
                 tweet_id_twitter = tweet_response["data"]["id"]
                 print(f"[CRON][DEBUG] Twitter tweet ID: {tweet_id_twitter}")
@@ -204,7 +324,7 @@ async def post_tweets(request: PostTweetsRequest):
             with conn.cursor() as cursor:
                 cursor.execute(
                     """
-                    SELECT id, content 
+                    SELECT id, content, user_id, account_id, "Image_url"
                     FROM posts 
                     WHERE user_id = %s 
                     AND account_id = %s 
@@ -250,7 +370,7 @@ def process_due_scheduled_tweets():
                 now = datetime.now(timezone.utc)
                 cursor.execute(
                     """
-                    SELECT p.id, p.content, p.user_id, p.account_id, p.scheduled_time
+                    SELECT p.id, p.content, p.user_id, p.account_id, p.scheduled_time,p."Image_url"
                     FROM posts p
                     WHERE p.status = 'unposted'
                     AND p.scheduled_time IS NOT NULL
@@ -263,7 +383,7 @@ def process_due_scheduled_tweets():
                 scheduled_tweets = cursor.fetchall()
                 tweets_to_post = []
                 for row in scheduled_tweets:
-                    tweet_id, content, user_id, account_id, scheduled_time = row
+                    # Just append the entire row - process_tweets will handle the unpacking
                     tweets_to_post.append(row)
                 if tweets_to_post:
                     posted_count, failed_tweets = process_tweets(tweets_to_post)
