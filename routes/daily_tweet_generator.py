@@ -1300,6 +1300,8 @@ async def regenerate_unposted_tweets(request: TweetRequest):
                 saved_posts = []
                 for i, tweet in enumerate(result.tweets):
                     scheduled_time = scheduled_times[i] if i < len(scheduled_times) else None
+                    # Clean the tweet content before saving
+                    cleaned_content = clean_tweet_content(tweet.tweet)
                     cursor.execute(
                         """
                         INSERT INTO posts (content, created_at, user_id, account_id, status, scheduled_time,risk_score,recommended_time)
@@ -1307,7 +1309,7 @@ async def regenerate_unposted_tweets(request: TweetRequest):
                         RETURNING id, content, created_at, status, scheduled_time,risk_score,recommended_time
                         """,
                         (
-                            tweet.tweet,
+                            cleaned_content,
                             current_time,
                             request.user_id,
                             request.account_id,

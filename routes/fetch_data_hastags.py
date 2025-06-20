@@ -913,7 +913,7 @@ class DraftPostCommentResponse(BaseModel):
 
 @router.post("/regenerate-post-reply")
 async def regenerate_post_reply(request: DraftPostCommentRequestRegenratePost):
-    """Regenerate all unposted replies for a user and account."""
+    """Regenerate all unposted replies for a user and account using existing tweets from database."""
     print("Regenerating unposted replies...")
     try:
         # First check for character settings
@@ -973,24 +973,13 @@ async def regenerate_post_reply(request: DraftPostCommentRequestRegenratePost):
                     pre_created_tweets
                 )
 
-                cursor.execute(
-                    """
-                    DELETE FROM post_for_reply 
-                    WHERE user_id = %s 
-                    AND account_id = %s 
-                    AND post_status = 'unposted'
-                    """,
-                    (request.user_id, request.account_id),
-                )
-                conn.commit()
-
                 # Get target hashtags for this account
                 cursor.execute(
                     """
                     SELECT target_hashtag, template_use, template_text
                     FROM persona_notify 
                     WHERE account_id = %s 
-                    AND user_id = %s 
+                    AND user_id = %s
                     AND notify_type = 'postReply'
                     """,
                     (request.account_id, request.user_id),
@@ -1007,36 +996,38 @@ async def regenerate_post_reply(request: DraftPostCommentRequestRegenratePost):
                 template_use = hashtag_result[1]
                 template_text = hashtag_result[2]
 
-                # Calculate total tweets needed
-                total_tweets_needed = posting_frequency * pre_created_tweets
+                # Get existing unposted tweets from post_for_reply table
+                cursor.execute(
+                    """
+                    SELECT id, tweet_id, text, post_username, author_profile
+                    FROM post_for_reply 
+                    WHERE user_id = %s 
+                    AND account_id = %s 
+                    AND post_status = 'unposted'
+                    ORDER BY created_at
+                    """,
+                    (request.user_id, request.account_id),
+                )
+                existing_tweets = cursor.fetchall()
                 
-                # Fetch tweets for each hashtag
-                all_tweets = []
-                for hashtag in hashtags:
-                    try:
-                        hashtag_value = hashtag.lstrip('#')
-                        tweet_list = fetch_tweets_for_hashtag(hashtag_value, max_results=10)
-                        if tweet_list:
-                            all_tweets.extend(tweet_list)
-                    except Exception as e:
-                        print(f"Error processing hashtag {hashtag}: {str(e)}")
-                        continue
-
-                if not all_tweets:
+                if not existing_tweets:
                     raise HTTPException(
                         status_code=400,
-                        detail="No tweets found for any hashtags",
+                        detail="No unposted tweets found for regeneration",
                     )
 
-                # Ensure we have the exact number of tweets needed
-                if len(all_tweets) > total_tweets_needed:
-                    import random
-                    all_tweets = random.sample(all_tweets, total_tweets_needed)
+                # Calculate total tweets needed and limit to available tweets
+                total_tweets_needed = posting_frequency * pre_created_tweets
+                tweets_to_process = existing_tweets[:total_tweets_needed]
 
-                # Generate and save replies
+                # Generate and save new replies for existing tweets
                 current_time = datetime.utcnow()
-                for i, tweet in enumerate(all_tweets):
+                updated_count = 0
+                
+                for i, tweet_data in enumerate(tweets_to_process):
                     try:
+                        tweet_id, original_tweet_id, tweet_text, post_username, author_profile = tweet_data
+                        
                         # Generate reply using the reply generation agent
                         if template_use and template_text:
                             # If template is enabled, use template text directly
@@ -1055,9 +1046,9 @@ async def regenerate_post_reply(request: DraftPostCommentRequestRegenratePost):
                                 print(f"Error processing template text: {str(e)}")
                                 # Fallback to AI generation if template processing fails
                                 reply_request = ReplyGenerationRequest(
-                                    tweet_id=tweet['id'],
-                                    tweet_text=tweet['text'],
-                                    post_username=tweet['user']['screen_name'],
+                                    tweet_id=original_tweet_id,
+                                    tweet_text=tweet_text,
+                                    post_username=post_username,
                                     character_settings=character_settings[0],
                                     posting_frequency=posting_frequency,
                                     pre_create=pre_created_tweets,
@@ -1069,71 +1060,61 @@ async def regenerate_post_reply(request: DraftPostCommentRequestRegenratePost):
                                 reply = await generate_reply(reply_request)
                                 reply_text = reply.reply_text
                                 risk_score = reply.risk_score
-                        else:
-                            # Generate reply using the reply generation agent
-                            reply_request = ReplyGenerationRequest(
-                                tweet_id=tweet['id'],
-                                tweet_text=tweet['text'],
-                                post_username=tweet['user']['screen_name'],
-                                character_settings=character_settings[0],
-                                posting_frequency=posting_frequency,
-                                pre_create=pre_created_tweets,
-                                template_use=template_use,
-                                template_text=template_text,
-                                posting_day=posting_day,
-                                posting_time=posting_time
-                            )
-                            
-                            reply = await generate_reply(reply_request)
-                            reply_text = reply.reply_text
-                            risk_score = reply.risk_score
+                            except Exception as e:
+                                print(f"Error processing template text: {str(e)}")
+                                # Fallback to AI generation if template processing fails
+                                reply_request = ReplyGenerationRequest(
+                                    tweet_id=original_tweet_id,
+                                    tweet_text=tweet_text,
+                                    post_username=post_username,
+                                    character_settings=character_settings[0],
+                                    posting_frequency=posting_frequency,
+                                    pre_create=pre_created_tweets,
+                                    template_use=template_use,
+                                    template_text=template_text,
+                                    posting_day=posting_day,
+                                    posting_time=posting_time
+                                )
+                                
+                                reply = await generate_reply(reply_request)
+                                reply_text = reply.reply_text
+                                risk_score = reply.risk_score
                         
                         # Get scheduled time for this tweet
                         scheduled_time = scheduled_times[i] if i < len(scheduled_times) else None
                         
+                        # Update the existing record with new reply and settings
                         cursor.execute(
                             """
-                            INSERT INTO post_for_reply (
-                                created_at, 
-                                tweet_id, 
-                                text, 
-                                post_username, 
-                                account_id, 
-                                user_id,
-                                reply_text,
-                                risk_score,
-                                schedule_time,
-                                author_profile,
-                                recommended_time
-                            )
-                            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                            RETURNING id, tweet_id, reply_text, risk_score, schedule_time
+                            UPDATE post_for_reply 
+                            SET reply_text = %s,
+                                risk_score = %s,
+                                schedule_time = %s,
+                                recommended_time = %s,
+                                updated_at = %s
+                            WHERE id = %s
                             """,
                             (
-                                current_time,
-                                tweet['id'],
-                                tweet['text'],
-                                tweet['user']['screen_name'],
-                                request.account_id,
-                                request.user_id,
                                 reply_text,
                                 risk_score,
                                 scheduled_time if str(post_mode).upper() == "TRUE" else None,
-                                tweet['user']['profile_image_url'],
                                 None if str(post_mode).upper() == "TRUE" else scheduled_time,
+                                current_time,
+                                tweet_id
                             ),
                         )
-                        reply_data = cursor.fetchone()
+                        updated_count += 1
                         
                     except Exception as e:
-                        print(f"Error processing tweet {tweet['id']}: {str(e)}")
+                        print(f"Error processing tweet {tweet_data[1]}: {str(e)}")
                         continue
 
                 conn.commit()
                 
                 return {
-                    "message": f"Successfully regenerated {len(all_tweets)} replies",
-                    "status": "success"
+                    "message": f"Successfully regenerated {updated_count} replies",
+                    "status": "success",
+                    "updated_count": updated_count
                 }
                 
         except Exception as db_error:
