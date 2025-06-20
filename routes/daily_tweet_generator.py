@@ -1229,11 +1229,6 @@ async def regenerate_unposted_tweets(request: TweetRequest):
                 pre_created_tweets = parse_pre_create_days(post_settings[4])  # Parse Japanese format
                 post_mode = post_settings[5]
                 
-                print("posting_day",posting_day)
-                print("posting_time",posting_time)
-                print("posting_frequency",posting_frequency)
-                print("pre_created_tweets",pre_created_tweets)
-                print("post_mode",post_mode)
 
                 # Get scheduled times based on settings
                 scheduled_times = get_next_scheduled_times(

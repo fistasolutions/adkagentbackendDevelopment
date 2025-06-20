@@ -144,6 +144,7 @@ class PostWithComments(BaseModel):
 
 def get_comment_analysis_agent_instructions(
     post_settings_data: dict = None,
+    character_settings: dict = None,
 ) -> str:
     posting_day_info = ""
     if post_settings_data and post_settings_data.get("posting_day"):
@@ -159,6 +160,9 @@ def get_comment_analysis_agent_instructions(
         """
 
     return f"""You are an expert comment analyzer and response generator. Your role is to:
+
+    **CHARACTER ANALYSIS AND ADAPTATION:**
+    {character_settings}
 
     1. Deep Comment Analysis:
        - Analyze comment sentiment and tone
@@ -633,7 +637,27 @@ async def test_analyze_and_respond_to_comments():
                     "posting_time": posting_time,
                     "scheduled_times": scheduled_times
                 }
-                comment_analysis_agent.instructions = get_comment_analysis_agent_instructions(post_settings_data)
+                
+                
+                cursor.execute(
+                    """
+                    SELECT character_settings 
+                    FROM personas 
+                    WHERE user_id = %s 
+                    AND account_id = %s
+                    """,
+                    (user_id, account_id),
+                )
+                character_settings = cursor.fetchone()
+                
+                if not character_settings:
+                    raise HTTPException(
+                        status_code=400,
+                        detail="Character settings not found. Please set up your character settings before generating tweets.",
+                    )
+                
+                
+                comment_analysis_agent.instructions = get_comment_analysis_agent_instructions(post_settings_data,character_settings)
 
             # Prepare comments for analysis
             comments_for_analysis = []
@@ -1405,7 +1429,7 @@ async def regenerate_comments(request: CommentResponseRequest):
                             "username": comment[3],
                             "comment_id": comment[0]
                         }])
-                        
+                        comment_analysis_agent.instructions = get_comment_analysis_agent_instructions(post_settings_data,character_settings)
                         analysis_result = await Runner.run(
                             comment_analysis_agent,
                             input=analysis_input
