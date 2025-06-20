@@ -1299,7 +1299,7 @@ async def regenerate_comments(request: CommentResponseRequest):
 
                 cursor.execute(
                     """
-                    SELECT posting_day, posting_time, posting_frequency, posting_time, pre_create
+                    SELECT posting_day, posting_time, posting_frequency, posting_time, pre_create,post_mode
                     FROM persona_notify 
                     WHERE user_id = %s 
                     AND account_id = %s
@@ -1320,7 +1320,9 @@ async def regenerate_comments(request: CommentResponseRequest):
                 posting_time = post_settings[1]  # This is a JSON object
                 posting_frequency = parse_posting_frequency(post_settings[2])  # Parse frequency string
                 posting_time = post_settings[3]
-                pre_create = parse_pre_create_days(post_settings[4])  # Parse Japanese format
+                pre_create = parse_pre_create_days(post_settings[4]) 
+                post_mode = post_settings[5]
+                # Parse Japanese format
 
                 # Get scheduled times based on settings
                 scheduled_times = get_next_scheduled_times(
@@ -1426,8 +1428,8 @@ async def regenerate_comments(request: CommentResponseRequest):
                         """
                         INSERT INTO comments_reply 
                         (reply_text, risk_score, user_id, account_username, schedule_time, 
-                         commentor_username, tweet_id, original_comment, tweet_url, comment_id)
-                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                         commentor_username, tweet_id, original_comment, tweet_url, comment_id,recommended_time)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                         RETURNING id, reply_text, schedule_time, risk_score
                         """,
                         (
@@ -1435,12 +1437,13 @@ async def regenerate_comments(request: CommentResponseRequest):
                             20,  # Default risk score
                             request.user_id,
                             request.account_id,
-                            scheduled_time,
+                            scheduled_time if str(post_mode).upper() == "TRUE" else None,
                             comment[3],  # commentor_username
                             comment[2],  # tweet_id
                             comment[1],  # original_comment
                             comment[4],  # tweet_url
-                            comment[0]   # comment_id
+                            comment[0],   # comment_id
+                            None if str(post_mode).upper() == "TRUE" else scheduled_time
                         )
                     )
                     reply_data = cursor.fetchone()
