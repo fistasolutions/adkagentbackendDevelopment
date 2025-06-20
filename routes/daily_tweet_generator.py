@@ -37,7 +37,7 @@ class TweetsOutput(BaseModel):
     average_reach_estimate: float
     overall_engagement_potential: float
 
-    @validator('tweets')
+    @validator("tweets")
     def validate_tweets_count(cls, v, values, **kwargs):
         # Remove the validation that limits tweets to 5
         return v
@@ -99,11 +99,7 @@ class DeleteTweetImageRequest(BaseModel):
     image_urls: List[str]
 
 
-async def get_events(
-    user_id: str, 
-    account_id: str, 
-    limit: int = 10
-) -> List[dict]:
+async def get_events(user_id: str, account_id: str, limit: int = 10) -> List[dict]:
     """Get upcoming events for a user and account."""
     conn = get_connection()
     try:
@@ -125,7 +121,7 @@ async def get_events(
                 {
                     "title": row[0],
                     "details": row[1],
-                    "datetime": row[2].strftime("%Y-%m-%dT%H:%M:%SZ")
+                    "datetime": row[2].strftime("%Y-%m-%dT%H:%M:%SZ"),
                 }
                 for row in cursor.fetchall()
             ]
@@ -133,10 +129,9 @@ async def get_events(
     finally:
         conn.close()
 
+
 async def get_post_requests(
-    user_id: str, 
-    account_id: str, 
-    limit: int = 10
+    user_id: str, account_id: str, limit: int = 10
 ) -> List[dict]:
     """Get post requests for a user and account."""
     conn = get_connection()
@@ -158,13 +153,14 @@ async def get_post_requests(
                     "request_id": row[0],
                     "chat_list": row[1],
                     "main_point": row[2],
-                    "created_at": row[3].strftime("%Y-%m-%dT%H:%M:%SZ")
+                    "created_at": row[3].strftime("%Y-%m-%dT%H:%M:%SZ"),
                 }
                 for row in cursor.fetchall()
             ]
             return post_requests
     finally:
         conn.close()
+
 
 def get_tweet_agent_instructions(
     character_settings: str = None,
@@ -173,6 +169,9 @@ def get_tweet_agent_instructions(
     post_settings_data: dict = None,
     events: List[dict] = None,
     post_requests: List[dict] = None,
+    role_models_data: List[str] = None,
+    industry_standard_data: List[str] = None,
+    competition_data: List[str] = None,
 ) -> str:
     base_instructions = f"""You are a professional tweet generation expert specializing in creating natural, human-like content. Your role is to generate tweets that perfectly match the provided character settings while learning from successful role models.
 
@@ -203,11 +202,23 @@ def get_tweet_agent_instructions(
     **POST REQUESTS:**
     {post_requests if post_requests else "No post requests"}
     
-    **POSTING SCHEDULE:**
-    {post_settings_data}
+    **ROLE MODELS DATA:**
+    **
+    A "Role Model" is a reference account used to learn the overall worldview and tone of posts for an entire account. It doesn't matter if the industry or genre is not an exact match. In fact, drawing inspiration from successful accounts in different industries that resonate with audiences can help establish a more relatable and memorable communication style. This is used to improve the overall quality of output—such as writing style, tone of posts, and how to engage with followers.
+    **
+    {role_models_data if role_models_data else "No role models data"}
     
-    **PREVIOUS CONTENT (AVOID DUPLICATION):**
-    {previous_tweets}
+    **INDUSTRY STANDARD DATA:**
+    **
+    An "Industry Standard" refers to a group of accounts that serve as sources of content ideas and inspiration. These are accounts or websites that regularly share specialized information or trends related to your selected theme. For example, if you're running a beauty-focused account, this category would include accounts that post about beauty trends, skincare, or cosmetic reviews. This information helps you create timely and valuable content for your audience.
+    **
+    {industry_standard_data if industry_standard_data else "No industry standard data"}
+    
+    **COMPETITION DATA:**
+    **
+    "Competitor" refers to accounts that are direct rivals within the industry you are entering. By analyzing the content of these competitor accounts and the reactions from their followers (such as likes and reposts), you can identify patterns of what content works effectively and what tends to be ignored. Studying their posting times, commonly used hashtags, and other behaviors also provides strategic insights for automated content planning and optimization.
+    **
+    {competition_data if competition_data else "No competition data"}
     
     GENERATION RULES:
     1. Character Voice:
@@ -265,7 +276,7 @@ def get_tweet_agent_instructions(
         "overall_engagement_potential": 0.12
     }}
     """
-    
+
     return base_instructions
 
 
@@ -276,7 +287,6 @@ tweet_agent = Agent(
     # context_manager=True,
     # memory=,
 )
-
 
 
 trend_strategy_agent = Agent(
@@ -375,10 +385,6 @@ comment_analyzer_agent = Agent(
 )
 
 
-
-
-
-
 async def get_previous_tweets(
     user_id: str, account_id: str, limit: int = 100
 ) -> List[str]:
@@ -402,6 +408,7 @@ async def get_previous_tweets(
     finally:
         conn.close()
 
+
 async def get_compititers_tweets(
     user_id: str, account_id: str, limit: int = 100
 ) -> List[str]:
@@ -412,96 +419,113 @@ async def get_compititers_tweets(
             cursor.execute(
                 """
                 SELECT compititers_username, content
-                    FROM compititers_data 
-                    WHERE user_id = %s 
-                    AND account_id = %s
+                FROM compititers_data 
+                WHERE user_id = %s 
+                AND account_id = %s
+                ORDER BY created_at DESC
                 """,
-                (user_id, account_id, limit),
+                (user_id, account_id),
             )
-            previous_tweets = [row[0] for row in cursor.fetchall()]
+            competitor_posts = cursor.fetchall()
+            previous_tweets = [row[0] for row in competitor_posts]
             return previous_tweets
     finally:
         conn.close()
 
-def get_next_scheduled_times(posting_days: dict, posting_time: dict, posting_frequency: int, pre_create: int) -> List[str]:
+
+def get_next_scheduled_times(
+    posting_days: dict, posting_time: dict, posting_frequency: int, pre_create: int
+) -> List[str]:
     """
     Generate a list of scheduled times for posts based on the new scheduling logic.
-    
+
     Args:
         posting_days: Dict mapping days to boolean values (e.g., {"月": True, "火": False, ...})
         posting_time: Dict mapping hours to boolean values (e.g., {"0": True, "1": False, ...})
         posting_frequency: Number of posts per day
         pre_create: Number of days in advance to schedule posts
-    
+
     Returns:
         List of ISO format datetime strings for scheduled posts
     """
     # Map Japanese day names to weekday numbers (0 = Monday, 6 = Sunday)
-    day_mapping = {
-        "月": 0, "火": 1, "水": 2, "木": 3, "金": 4, "土": 5, "日": 6
-    }
-    
+    day_mapping = {"月": 0, "火": 1, "水": 2, "木": 3, "金": 4, "土": 5, "日": 6}
+
     # Get current time in UTC
     current_time = datetime.utcnow()
     current_date = current_time.date()
-    
+
     # Get enabled days (days marked as True)
     enabled_days = [day for day, enabled in posting_days.items() if enabled]
     if not enabled_days:
         raise ValueError("No posting days are enabled")
-    
+
     # Get enabled hours (hours marked as True)
     enabled_hours = [int(hour) for hour, enabled in posting_time.items() if enabled]
     if not enabled_hours:
         raise ValueError("No posting hours are enabled")
-    
+
     # Sort enabled hours
     enabled_hours.sort()
-    
+
     # Calculate total number of posts needed
     total_posts = posting_frequency * pre_create
-    
+
     # Get the next posting days
     next_posting_dates = []
     current_weekday = current_date.weekday()
-    
+
     # Start from the next day
     check_date = current_date + timedelta(days=1)
-    
+
     while len(next_posting_dates) < pre_create:
         # Check if current day is enabled
-        current_day_jp = ["月", "火", "水", "木", "金", "土", "日"][check_date.weekday()]
-        
+        current_day_jp = ["月", "火", "水", "木", "金", "土", "日"][
+            check_date.weekday()
+        ]
+
         if current_day_jp in enabled_days:
             next_posting_dates.append(check_date)
-        
+
         check_date += timedelta(days=1)
-    
+
     # Generate scheduled times for each posting date
     scheduled_times = []
     for posting_date in next_posting_dates:
         for hour in enabled_hours:
             # Create datetime for this hour
-            post_time = datetime.combine(posting_date, datetime.min.time().replace(hour=hour))
-            
+            post_time = datetime.combine(
+                posting_date, datetime.min.time().replace(hour=hour)
+            )
+
             # Only add if it's in the future
             if post_time > current_time:
                 scheduled_times.append(post_time.isoformat() + "Z")
-                
+
                 # If we have enough posts for today, break
-                if len([t for t in scheduled_times if t.startswith(posting_date.isoformat())]) >= posting_frequency:
+                if (
+                    len(
+                        [
+                            t
+                            for t in scheduled_times
+                            if t.startswith(posting_date.isoformat())
+                        ]
+                    )
+                    >= posting_frequency
+                ):
                     break
-    
+
     # Sort and return the scheduled times
     return sorted(scheduled_times)[:total_posts]
+
 
 def parse_pre_create_days(pre_create_str: str) -> int:
     """
     Parse the pre_create string from Japanese format (e.g., "7日") to an integer.
-    
+
     Args:
         pre_create_str: String in format like "7日"
-    
+
     Returns:
         Integer number of days
     """
@@ -512,13 +536,14 @@ def parse_pre_create_days(pre_create_str: str) -> int:
         # If parsing fails, return a default value of 7
         return 7
 
+
 def parse_posting_frequency(frequency_str: str) -> int:
     """
     Parse the posting frequency string (e.g., "1day") to an integer.
-    
+
     Args:
         frequency_str: String in format like "1day"
-    
+
     Returns:
         Integer number of posts per day
     """
@@ -529,20 +554,22 @@ def parse_posting_frequency(frequency_str: str) -> int:
         # If parsing fails, return a default value of 1
         return 1
 
+
 def clean_tweet_content(content: str) -> str:
     """
     Clean tweet content by removing null characters and other problematic characters.
-    
+
     Args:
         content: The original tweet content
-    
+
     Returns:
         Cleaned tweet content
     """
     if not content:
         return ""
     # Remove null characters and other control characters
-    return ''.join(char for char in content if ord(char) >= 32 or char in '\n\r\t')
+    return "".join(char for char in content if ord(char) >= 32 or char in "\n\r\t")
+
 
 def get_next_scheduled_times_rolling(
     posting_days, posting_time, posting_frequency, pre_create, existing_scheduled_times
@@ -551,13 +578,17 @@ def get_next_scheduled_times_rolling(
     Generate a rolling window of scheduled times, always keeping pre_create enabled days (each with posting_frequency posts) in the future.
     """
     enabled_days = [day for day, enabled in posting_days.items() if enabled]
-    enabled_hours = sorted([int(hour) for hour, enabled in posting_time.items() if enabled])
+    enabled_hours = sorted(
+        [int(hour) for hour, enabled in posting_time.items() if enabled]
+    )
     current_time = datetime.utcnow()
     current_date = current_time.date()
     days_needed = pre_create
 
     # Parse existing_scheduled_times into a dict: {date: count}
-    existing_dates = [datetime.fromisoformat(t.replace('Z', '')) for t in existing_scheduled_times]
+    existing_dates = [
+        datetime.fromisoformat(t.replace("Z", "")) for t in existing_scheduled_times
+    ]
     # Only consider posts scheduled strictly after now
     future_dates = [dt.date() for dt in existing_dates if dt > current_time]
     date_counts = Counter(future_dates)
@@ -572,12 +603,15 @@ def get_next_scheduled_times_rolling(
             count = date_counts.get(check_date, 0)
             for i in range(count, posting_frequency):
                 hour = enabled_hours[i % len(enabled_hours)]
-                post_time = datetime.combine(check_date, datetime.min.time().replace(hour=hour))
+                post_time = datetime.combine(
+                    check_date, datetime.min.time().replace(hour=hour)
+                )
                 if post_time > current_time:
                     scheduled_times.append(post_time.isoformat() + "Z")
             filled_days += 1
         check_date += timedelta(days=1)
     return scheduled_times
+
 
 @router.post("/generate-daily-tweets", response_model=TweetsOutput)
 async def generate_tweets(request: TweetRequest):
@@ -599,7 +633,7 @@ async def generate_tweets(request: TweetRequest):
                     (request.user_id, request.account_id),
                 )
                 character_settings = cursor.fetchone()
-                
+
                 if not character_settings:
                     raise HTTPException(
                         status_code=400,
@@ -608,20 +642,203 @@ async def generate_tweets(request: TweetRequest):
 
                 cursor.execute(
                     """
-                    SELECT compititers_username, content
-                    FROM compititers_data 
+                    SELECT role_models, industry_standard,competition
+                    FROM persona_safety 
                     WHERE user_id = %s 
                     AND account_id = %s
+                    ORDER BY created_at DESC
                     """,
                     (request.user_id, request.account_id),
                 )
-                competitor_rows = cursor.fetchall()
-                competitor_data = [
-                    f"Username: {row[0]}, Content: {row[1]}"
-                    for row in competitor_rows
-                    if row[0] and row[1]
-                ]
+                persona_safety = cursor.fetchone()
+                role_models = persona_safety[0] if persona_safety else None
+                industry_standard = persona_safety[1] if persona_safety else None
+                competition = persona_safety[2] if persona_safety else None
                 
+                # Parse role_models JSON and fetch data for each account
+                role_models_data = []
+                if role_models:
+                    try:
+                        role_models_dict = (
+                            json.loads(role_models)
+                            if isinstance(role_models, str)
+                            else role_models
+                        )
+                        print(f"Processing role models: {role_models_dict}")
+
+                        for account_key, account_name in role_models_dict.items():
+                            if (
+                                account_name and account_name.strip()
+                            ):  # Only process non-empty account names
+                                print(
+                                    f"Fetching data for role model account: {account_name}"
+                                )
+                                # Fetch latest data for this account
+                                cursor.execute(
+                                    """
+                                    SELECT content, created_at
+                                    FROM compititers_data 
+                                    WHERE compititers_username = %s
+                                    ORDER BY created_at DESC
+                                    LIMIT 10
+                                    """,
+                                    (account_name,),
+                                )
+                                account_posts = cursor.fetchall()
+
+                                if account_posts:
+                                    account_data = [
+                                        f"Role Model Account: {account_name}, Content: {row[0]}, Date: {row[1].strftime('%Y-%m-%d')}"
+                                        for row in account_posts
+                                        if row[0]  # Only include posts with content
+                                    ]
+                                    role_models_data.extend(account_data)
+                                    print(
+                                        f"Found {len(account_data)} posts for {account_name}"
+                                    )
+                                else:
+                                    print(
+                                        f"No posts found for role model account: {account_name}"
+                                    )
+                    except (json.JSONDecodeError, TypeError) as e:
+                        print(f"Error parsing role_models JSON: {e}")
+                        # Continue without role models data
+                        role_models_data = []
+
+                # Parse industry_standard JSON and fetch data for each account
+                industry_standard_data = []
+                if industry_standard:
+                    try:
+                        industry_standard_dict = (
+                            json.loads(industry_standard)
+                            if isinstance(industry_standard, str)
+                            else industry_standard
+                        )
+                        print(f"Processing industry standard: {industry_standard_dict}")
+
+                        for account_key, account_name in industry_standard_dict.items():
+                            if (
+                                account_name and account_name.strip()
+                            ):  # Only process non-empty account names
+                                print(
+                                    f"Fetching data for industry standard account: {account_name}"
+                                )
+                                # Fetch latest data for this account
+                                cursor.execute(
+                                    """
+                                    SELECT content, created_at
+                                    FROM compititers_data 
+                                    WHERE compititers_username = %s
+                                    ORDER BY created_at DESC
+                                    LIMIT 10
+                                    """,
+                                    (account_name,),
+                                )
+                                account_posts = cursor.fetchall()
+
+                                if account_posts:
+                                    account_data = [
+                                        f"Industry Standard Account: {account_name}, Content: {row[0]}, Date: {row[1].strftime('%Y-%m-%d')}"
+                                        for row in account_posts
+                                        if row[0]  # Only include posts with content
+                                    ]
+                                    industry_standard_data.extend(account_data)
+                                    print(
+                                        f"Found {len(account_data)} posts for {account_name}"
+                                    )
+                                else:
+                                    print(
+                                        f"No posts found for industry standard account: {account_name}"
+                                    )
+                    except (json.JSONDecodeError, TypeError) as e:
+                        print(f"Error parsing industry_standard JSON: {e}")
+                        # Continue without industry standard data
+                        industry_standard_data = []
+
+                # Parse competition JSON and fetch data for each account
+                competition_data = []
+                if competition:
+                    try:
+                        competition_dict = (
+                            json.loads(competition)
+                            if isinstance(competition, str)
+                            else competition
+                        )
+                        print(f"Processing competition: {competition_dict}")
+
+                        for account_key, account_name in competition_dict.items():
+                            if (
+                                account_name and account_name.strip()
+                            ):  # Only process non-empty account names
+                                print(
+                                    f"Fetching data for competition account: {account_name}"
+                                )
+                                # Fetch latest data for this account
+                                cursor.execute(
+                                    """
+                                    SELECT content, created_at
+                                    FROM compititers_data 
+                                    WHERE compititers_username = %s
+                                    ORDER BY created_at DESC
+                                    LIMIT 10
+                                    """,
+                                    (account_name,),
+                                )
+                                account_posts = cursor.fetchall()
+
+                                if account_posts:
+                                    account_data = [
+                                        f"Competition Account: {account_name}, Content: {row[0]}, Date: {row[1].strftime('%Y-%m-%d')}"
+                                        for row in account_posts
+                                        if row[0]  # Only include posts with content
+                                    ]
+                                    competition_data.extend(account_data)
+                                    print(
+                                        f"Found {len(account_data)} posts for {account_name}"
+                                    )
+                                else:
+                                    print(
+                                        f"No posts found for competition account: {account_name}"
+                                    )
+                    except (json.JSONDecodeError, TypeError) as e:
+                        print(f"Error parsing competition JSON: {e}")
+                        # Continue without competition data
+                        competition_data = []
+
+                # Combine all data sources
+                all_data = role_models_data + industry_standard_data + competition_data
+
+                # If no data found, try to get fallback competitor data (but don't error if none found)
+                if not all_data:
+                    print(
+                        "No data found from persona safety, trying fallback competitor data"
+                    )
+                    try:
+                        cursor.execute(
+                            """
+                            SELECT compititers_username, content
+                            FROM compititers_data 
+                            WHERE user_id = %s 
+                            AND account_id = %s
+                            ORDER BY created_at DESC
+                            LIMIT 20
+                            """,
+                            (request.user_id, request.account_id),
+                        )
+                        competitor_posts = cursor.fetchall()
+                        all_data = [
+                            f"Competitor Account: {row[0]}, Content: {row[1]}"
+                            for row in competitor_posts
+                            if row[0] and row[1]
+                        ]
+                        print(f"Fallback competitor data collected: {len(all_data)}")
+                    except Exception as e:
+                        print(f"Error fetching fallback competitor data: {e}")
+                        all_data = []
+
+                # Use combined data as competitor data (empty list if no data found)
+                competitor_data = all_data
+
                 cursor.execute(
                     """
                     SELECT posting_day, posting_time, posting_frequency,posting_time,pre_create,post_mode
@@ -633,24 +850,28 @@ async def generate_tweets(request: TweetRequest):
                     (request.user_id, request.account_id),
                 )
                 post_settings = cursor.fetchone()
-                
+
                 if not post_settings:
                     raise HTTPException(
                         status_code=400,
                         detail="Post settings data not found. Please set up your post settings before generating tweets.",
                     )
-                
+
                 # Parse the post settings
                 posting_day = post_settings[0]  # This is a JSON object
                 posting_time = post_settings[1]  # This is a JSON object
-                posting_frequency = parse_posting_frequency(post_settings[2])  # Parse frequency string
+                posting_frequency = parse_posting_frequency(
+                    post_settings[2]
+                )  # Parse frequency string
                 posting_time = post_settings[3]
-                pre_created_tweets = parse_pre_create_days(post_settings[4])  # Parse Japanese format
+                pre_created_tweets = parse_pre_create_days(
+                    post_settings[4]
+                )  # Parse Japanese format
                 post_mode = post_settings[5]
 
                 # Fetch all future scheduled posts for this user/account
                 current_time = datetime.utcnow()
-                
+
                 # Use different time field based on post_mode
                 if str(post_mode).upper() == "TRUE":
                     # When post_mode is True, check scheduled_time
@@ -665,7 +886,11 @@ async def generate_tweets(request: TweetRequest):
                         """,
                         (request.user_id, request.account_id, current_time),
                     )
-                    existing_scheduled_times = [row[0].strftime("%Y-%m-%dT%H:%M:%SZ") for row in cursor.fetchall() if row[0]]
+                    existing_scheduled_times = [
+                        row[0].strftime("%Y-%m-%dT%H:%M:%SZ")
+                        for row in cursor.fetchall()
+                        if row[0]
+                    ]
                 else:
                     # When post_mode is False, check recommended_time
                     cursor.execute(
@@ -679,8 +904,12 @@ async def generate_tweets(request: TweetRequest):
                         """,
                         (request.user_id, request.account_id, current_time),
                     )
-                    existing_scheduled_times = [row[1].strftime("%Y-%m-%dT%H:%M:%SZ") for row in cursor.fetchall() if row[1]]
-                
+                    existing_scheduled_times = [
+                        row[1].strftime("%Y-%m-%dT%H:%M:%SZ")
+                        for row in cursor.fetchall()
+                        if row[1]
+                    ]
+
                 print("post_mode", post_mode)
 
                 # Use rolling scheduling logic
@@ -689,7 +918,7 @@ async def generate_tweets(request: TweetRequest):
                     posting_time,
                     posting_frequency,
                     pre_created_tweets,
-                    existing_scheduled_times
+                    existing_scheduled_times,
                 )
 
                 # Format post settings data for the agent
@@ -699,7 +928,7 @@ async def generate_tweets(request: TweetRequest):
                     "posting_frequency": posting_frequency,
                     "posting_time": posting_time,
                     "pre_created_tweets": pre_created_tweets,
-                    "scheduled_times": scheduled_times
+                    "scheduled_times": scheduled_times,
                 }
 
                 posts_to_generate = len(scheduled_times)
@@ -714,50 +943,54 @@ async def generate_tweets(request: TweetRequest):
         previous_tweets = await get_previous_tweets(request.user_id, request.account_id)
         events = await get_events(request.user_id, request.account_id)
         post_requests = await get_post_requests(request.user_id, request.account_id)
-        
+
         # Update the agent's instructions to specify the exact number of tweets needed
         tweet_agent.instructions = get_tweet_agent_instructions(
-            character_settings[0], 
-            competitor_data, 
-            previous_tweets, 
+            character_settings[0],
+            role_models_data,
+            industry_standard_data,
+            competition_data,
+            previous_tweets,
             post_settings_data,
             events,
-            post_requests
+            post_requests,
         )
-        
+
         # Generate tweets with explicit count
         run_result = await Runner.run(
-            tweet_agent, 
-            input=f"Create exactly {posts_to_generate} tweets. Each tweet must be unique and follow the character settings."
+            tweet_agent,
+            input=f"Create exactly {posts_to_generate} tweets. Each tweet must be unique and follow the character settings.",
         )
         result = run_result.final_output
-        
+
         if not isinstance(result, TweetsOutput):
             print(f"Unexpected response type: {type(result)}")
             print(f"Response content: {result}")
             raise HTTPException(
                 status_code=500, detail="Unexpected response format from Tweet Agent"
             )
-        
+
         # Verify the number of tweets generated
         if len(result.tweets) != posts_to_generate:
             raise HTTPException(
                 status_code=500,
-                detail=f"Expected {posts_to_generate} tweets but got {len(result.tweets)}"
+                detail=f"Expected {posts_to_generate} tweets but got {len(result.tweets)}",
             )
-        
+
         # Save tweets to database
         print(result.tweets)
         conn = get_connection()
         try:
             with conn.cursor() as cursor:
                 current_time = datetime.utcnow()
-                
+
                 # Save each tweet as a separate row
                 saved_posts = []
                 print("post_mode", post_mode)
                 for i, tweet in enumerate(result.tweets):
-                    scheduled_time = scheduled_times[i] if i < len(scheduled_times) else None
+                    scheduled_time = (
+                        scheduled_times[i] if i < len(scheduled_times) else None
+                    )
                     # Clean the tweet content before saving
                     cleaned_content = clean_tweet_content(tweet.tweet)
                     cursor.execute(
@@ -772,25 +1005,33 @@ async def generate_tweets(request: TweetRequest):
                             request.user_id,
                             request.account_id,
                             "unposted",
-                            scheduled_time if str(post_mode).upper() == "TRUE" else None,
+                            (
+                                scheduled_time
+                                if str(post_mode).upper() == "TRUE"
+                                else None
+                            ),
                             tweet.risk_score,
-                            None if str(post_mode).upper() == "TRUE" else scheduled_time,
+                            (
+                                None
+                                if str(post_mode).upper() == "TRUE"
+                                else scheduled_time
+                            ),
                         ),
                     )
                     post_data = cursor.fetchone()
                     saved_posts.append(
                         {
-                        "id": post_data[0],
-                        "content": post_data[1],
-                        "created_at": post_data[2],
+                            "id": post_data[0],
+                            "content": post_data[1],
+                            "created_at": post_data[2],
                             "status": post_data[3],
                             "scheduled_time": post_data[4],
                             "risk_score": post_data[5],
                         }
                     )
-                
+
                 conn.commit()
-                
+
         except Exception as db_error:
             print(f"Database error: {str(db_error)}")
             raise HTTPException(
@@ -799,7 +1040,7 @@ async def generate_tweets(request: TweetRequest):
             )
         finally:
             conn.close()
-        
+
         print("Tweets generated and saved successfully")
         return result
     except HTTPException as he:
@@ -850,9 +1091,11 @@ async def update_tweet(request: TweetUpdateRequest):
         risk_assessment = None
         if request.content:
             risk_agent = RiskAssessmentAgent()
-            risk_assessment = await risk_agent.get_response(RiskAssessmentRequest(content=request.content))
+            risk_assessment = await risk_agent.get_response(
+                RiskAssessmentRequest(content=request.content)
+            )
             print(risk_assessment)
-        
+
         conn = get_connection()
         try:
             with conn.cursor() as cursor:
@@ -882,16 +1125,21 @@ async def update_tweet(request: TweetUpdateRequest):
                         update_fields.append("risk_score = %s")
                         update_values.append(risk_assessment.overall_risk_score)
                         # Convert risk assessment to JSON string
-                        risk_assessment_json = json.dumps({
-                            "risk_categories": [category.dict() for category in risk_assessment.risk_categories],
-                            "risk_assignment": risk_assessment.risk_assignment
-                        })
+                        risk_assessment_json = json.dumps(
+                            {
+                                "risk_categories": [
+                                    category.dict()
+                                    for category in risk_assessment.risk_categories
+                                ],
+                                "risk_assignment": risk_assessment.risk_assignment,
+                            }
+                        )
                         update_fields.append("risk_assesments = %s")
                         update_values.append(risk_assessment_json)
 
                 if request.scheduled_time:
                     try:
-                    
+
                         update_fields.append("scheduled_time = %s")
                         update_values.append(request.scheduled_time)
                     except ValueError:
@@ -929,8 +1177,8 @@ async def update_tweet(request: TweetUpdateRequest):
                         "content": updated_tweet[1],
                         "scheduled_time": updated_tweet[2],
                         "risk_score": updated_tweet[3],
-                        "risk_assesments": risk_assesments_value
-                    }
+                        "risk_assesments": risk_assesments_value,
+                    },
                 }
 
                 return response
@@ -984,7 +1232,9 @@ async def update_tweet_image(request: TweetImageUpdateRequest):
                     current_images = []
 
                 # Append new images, avoiding duplicates
-                updated_images = list(dict.fromkeys(current_images + request.image_urls))
+                updated_images = list(
+                    dict.fromkeys(current_images + request.image_urls)
+                )
 
                 # Update the image URLs (as JSONB)
                 cursor.execute(
@@ -1013,7 +1263,8 @@ async def update_tweet_image(request: TweetImageUpdateRequest):
         except Exception as db_error:
             print(f"Database error: {str(db_error)}")
             raise HTTPException(
-                status_code=500, detail=f"Failed to update tweet images: {str(db_error)}"
+                status_code=500,
+                detail=f"Failed to update tweet images: {str(db_error)}",
             )
         finally:
             conn.close()
@@ -1022,9 +1273,11 @@ async def update_tweet_image(request: TweetImageUpdateRequest):
         raise he
     except Exception as e:
         print(f"Error updating tweet images: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Failed to update tweet images: {str(e)}")
-    
-    
+        raise HTTPException(
+            status_code=500, detail=f"Failed to update tweet images: {str(e)}"
+        )
+
+
 @router.delete("/delete-tweet")
 async def delete_tweet(request: DeleteTweetRequest):
     """Delete a tweet by its ID."""
@@ -1061,7 +1314,7 @@ async def delete_tweet(request: DeleteTweetRequest):
 
                 return {
                     "message": "Tweet deleted successfully",
-                    "tweet_id": deleted_tweet[0]
+                    "tweet_id": deleted_tweet[0],
                 }
 
         except HTTPException as he:
@@ -1113,7 +1366,9 @@ async def delete_tweet_image(request: DeleteTweetImageRequest):
                     current_images = []
 
                 # Remove the specified image URLs
-                updated_images = [url for url in current_images if url not in request.image_urls]
+                updated_images = [
+                    url for url in current_images if url not in request.image_urls
+                ]
 
                 # Update the image URLs (as JSONB)
                 cursor.execute(
@@ -1142,7 +1397,8 @@ async def delete_tweet_image(request: DeleteTweetImageRequest):
         except Exception as db_error:
             print(f"Database error: {str(db_error)}")
             raise HTTPException(
-                status_code=500, detail=f"Failed to delete tweet images: {str(db_error)}"
+                status_code=500,
+                detail=f"Failed to delete tweet images: {str(db_error)}",
             )
         finally:
             conn.close()
@@ -1151,7 +1407,9 @@ async def delete_tweet_image(request: DeleteTweetImageRequest):
         raise he
     except Exception as e:
         print(f"Error deleting tweet images: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Failed to delete tweet images: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail=f"Failed to delete tweet images: {str(e)}"
+        )
 
 
 @router.post("/regenerate-unposted-tweets", response_model=TweetsOutput)
@@ -1174,7 +1432,7 @@ async def regenerate_unposted_tweets(request: TweetRequest):
                     (request.user_id, request.account_id),
                 )
                 character_settings = cursor.fetchone()
-                
+
                 if not character_settings:
                     raise HTTPException(
                         status_code=400,
@@ -1183,26 +1441,203 @@ async def regenerate_unposted_tweets(request: TweetRequest):
 
                 cursor.execute(
                     """
-                    SELECT compititers_username, content
-                    FROM compititers_data 
+                    SELECT role_models, industry_standard,competition
+                    FROM persona_safety 
                     WHERE user_id = %s 
                     AND account_id = %s
+                    ORDER BY created_at DESC
                     """,
                     (request.user_id, request.account_id),
                 )
-                competitor_rows = cursor.fetchall()
-                competitor_data = [
-                    f"Username: {row[0]}, Content: {row[1]}"
-                    for row in competitor_rows
-                    if row[0] and row[1]
-                ]
+                persona_safety = cursor.fetchone()
+                role_models = persona_safety[0] if persona_safety else None
+                industry_standard = persona_safety[1] if persona_safety else None
+                competition = persona_safety[2] if persona_safety else None
                 
-                if not competitor_data:
-                    raise HTTPException(
-                        status_code=400,
-                        detail="Competitor data not found. Please set up your competitor data before generating tweets.",
+                # Parse role_models JSON and fetch data for each account
+                role_models_data = []
+                if role_models:
+                    try:
+                        role_models_dict = (
+                            json.loads(role_models)
+                            if isinstance(role_models, str)
+                            else role_models
+                        )
+                        print(f"Processing role models: {role_models_dict}")
+
+                        for account_key, account_name in role_models_dict.items():
+                            if (
+                                account_name and account_name.strip()
+                            ):  # Only process non-empty account names
+                                print(
+                                    f"Fetching data for role model account: {account_name}"
+                                )
+                                # Fetch latest data for this account
+                                cursor.execute(
+                                    """
+                                    SELECT content, created_at
+                                    FROM compititers_data 
+                                    WHERE compititers_username = %s
+                                    ORDER BY created_at DESC
+                                    LIMIT 10
+                                    """,
+                                    (account_name,),
+                                )
+                                account_posts = cursor.fetchall()
+
+                                if account_posts:
+                                    account_data = [
+                                        f"Role Model Account: {account_name}, Content: {row[0]}, Date: {row[1].strftime('%Y-%m-%d')}"
+                                        for row in account_posts
+                                        if row[0]  # Only include posts with content
+                                    ]
+                                    role_models_data.extend(account_data)
+                                    print(
+                                        f"Found {len(account_data)} posts for {account_name}"
+                                    )
+                                else:
+                                    print(
+                                        f"No posts found for role model account: {account_name}"
+                                    )
+                    except (json.JSONDecodeError, TypeError) as e:
+                        print(f"Error parsing role_models JSON: {e}")
+                        # Continue without role models data
+                        role_models_data = []
+
+                # Parse industry_standard JSON and fetch data for each account
+                industry_standard_data = []
+                if industry_standard:
+                    try:
+                        industry_standard_dict = (
+                            json.loads(industry_standard)
+                            if isinstance(industry_standard, str)
+                            else industry_standard
+                        )
+                        print(f"Processing industry standard: {industry_standard_dict}")
+
+                        for account_key, account_name in industry_standard_dict.items():
+                            if (
+                                account_name and account_name.strip()
+                            ):  # Only process non-empty account names
+                                print(
+                                    f"Fetching data for industry standard account: {account_name}"
+                                )
+                                # Fetch latest data for this account
+                                cursor.execute(
+                                    """
+                                    SELECT content, created_at
+                                    FROM compititers_data 
+                                    WHERE compititers_username = %s
+                                    ORDER BY created_at DESC
+                                    LIMIT 10
+                                    """,
+                                    (account_name,),
+                                )
+                                account_posts = cursor.fetchall()
+
+                                if account_posts:
+                                    account_data = [
+                                        f"Industry Standard Account: {account_name}, Content: {row[0]}, Date: {row[1].strftime('%Y-%m-%d')}"
+                                        for row in account_posts
+                                        if row[0]  # Only include posts with content
+                                    ]
+                                    industry_standard_data.extend(account_data)
+                                    print(
+                                        f"Found {len(account_data)} posts for {account_name}"
+                                    )
+                                else:
+                                    print(
+                                        f"No posts found for industry standard account: {account_name}"
+                                    )
+                    except (json.JSONDecodeError, TypeError) as e:
+                        print(f"Error parsing industry_standard JSON: {e}")
+                        # Continue without industry standard data
+                        industry_standard_data = []
+
+                # Parse competition JSON and fetch data for each account
+                competition_data = []
+                if competition:
+                    try:
+                        competition_dict = (
+                            json.loads(competition)
+                            if isinstance(competition, str)
+                            else competition
+                        )
+                        print(f"Processing competition: {competition_dict}")
+
+                        for account_key, account_name in competition_dict.items():
+                            if (
+                                account_name and account_name.strip()
+                            ):  # Only process non-empty account names
+                                print(
+                                    f"Fetching data for competition account: {account_name}"
+                                )
+                                # Fetch latest data for this account
+                                cursor.execute(
+                                    """
+                                    SELECT content, created_at
+                                    FROM compititers_data 
+                                    WHERE compititers_username = %s
+                                    ORDER BY created_at DESC
+                                    LIMIT 10
+                                    """,
+                                    (account_name,),
+                                )
+                                account_posts = cursor.fetchall()
+
+                                if account_posts:
+                                    account_data = [
+                                        f"Competition Account: {account_name}, Content: {row[0]}, Date: {row[1].strftime('%Y-%m-%d')}"
+                                        for row in account_posts
+                                        if row[0]  # Only include posts with content
+                                    ]
+                                    competition_data.extend(account_data)
+                                    print(
+                                        f"Found {len(account_data)} posts for {account_name}"
+                                    )
+                                else:
+                                    print(
+                                        f"No posts found for competition account: {account_name}"
+                                    )
+                    except (json.JSONDecodeError, TypeError) as e:
+                        print(f"Error parsing competition JSON: {e}")
+                        # Continue without competition data
+                        competition_data = []
+
+                # Combine all data sources
+                all_data = role_models_data + industry_standard_data + competition_data
+
+                # If no data found, try to get fallback competitor data (but don't error if none found)
+                if not all_data:
+                    print(
+                        "No data found from persona safety, trying fallback competitor data"
                     )
-                
+                    try:
+                        cursor.execute(
+                            """
+                            SELECT compititers_username, content
+                            FROM compititers_data 
+                            WHERE user_id = %s 
+                            AND account_id = %s
+                            ORDER BY created_at DESC
+                            LIMIT 20
+                            """,
+                            (request.user_id, request.account_id),
+                        )
+                        competitor_posts = cursor.fetchall()
+                        all_data = [
+                            f"Competitor Account: {row[0]}, Content: {row[1]}"
+                            for row in competitor_posts
+                            if row[0] and row[1]
+                        ]
+                        print(f"Fallback competitor data collected: {len(all_data)}")
+                    except Exception as e:
+                        print(f"Error fetching fallback competitor data: {e}")
+                        all_data = []
+
+                # Use combined data as competitor data (empty list if no data found)
+                competitor_data = all_data
+
                 cursor.execute(
                     """
                     SELECT posting_day, posting_time, posting_frequency,posting_time,pre_create,post_mode
@@ -1214,30 +1649,30 @@ async def regenerate_unposted_tweets(request: TweetRequest):
                     (request.user_id, request.account_id),
                 )
                 post_settings = cursor.fetchone()
-                
+
                 if not post_settings:
                     raise HTTPException(
                         status_code=400,
                         detail="Post settings data not found. Please set up your post settings before generating tweets.",
                     )
-                
+
                 # Parse the post settings
                 posting_day = post_settings[0]  # This is a JSON object
                 posting_time = post_settings[1]  # This is a JSON object
-                posting_frequency = parse_posting_frequency(post_settings[2])  # Parse frequency string
+                posting_frequency = parse_posting_frequency(
+                    post_settings[2]
+                )  # Parse frequency string
                 posting_time = post_settings[3]
-                pre_created_tweets = parse_pre_create_days(post_settings[4])  # Parse Japanese format
+                pre_created_tweets = parse_pre_create_days(
+                    post_settings[4]
+                )  # Parse Japanese format
                 post_mode = post_settings[5]
-                
 
                 # Get scheduled times based on settings
                 scheduled_times = get_next_scheduled_times(
-                    posting_day,
-                    posting_time,
-                    posting_frequency,
-                    pre_created_tweets
+                    posting_day, posting_time, posting_frequency, pre_created_tweets
                 )
-                
+
                 # Format post settings data for the agent
                 post_settings_data = {
                     "posting_day": posting_day,
@@ -1245,9 +1680,8 @@ async def regenerate_unposted_tweets(request: TweetRequest):
                     "posting_frequency": posting_frequency,
                     "posting_time": posting_time,
                     "pre_created_tweets": pre_created_tweets,
-                    "scheduled_times": scheduled_times
+                    "scheduled_times": scheduled_times,
                 }
-
 
                 cursor.execute(
                     """
@@ -1259,7 +1693,7 @@ async def regenerate_unposted_tweets(request: TweetRequest):
                     (request.user_id, request.account_id),
                 )
                 conn.commit()
-                
+
         finally:
             conn.close()
 
@@ -1268,38 +1702,44 @@ async def regenerate_unposted_tweets(request: TweetRequest):
         post_requests = await get_post_requests(request.user_id, request.account_id)
 
         tweet_agent.instructions = get_tweet_agent_instructions(
-            character_settings[0], 
-            competitor_data, 
-            previous_tweets, 
+            character_settings[0],
+            role_models_data,
+            industry_standard_data,
+            competition_data,
+            previous_tweets,
             post_settings_data,
             events,
-            post_requests
+            post_requests,
         )
-        
+
         total_tweets_needed = posting_frequency * pre_created_tweets
-        run_result = await Runner.run(tweet_agent, input=f"generate {total_tweets_needed} tweets")
+        run_result = await Runner.run(
+            tweet_agent, input=f"generate {total_tweets_needed} tweets"
+        )
         result = run_result.final_output
-        
+
         if not isinstance(result, TweetsOutput):
             raise HTTPException(
-                status_code=500, detail="Unexpected response format from Tweet Agent"   
+                status_code=500, detail="Unexpected response format from Tweet Agent"
             )
         if len(result.tweets) != total_tweets_needed:
             raise HTTPException(
-                status_code=500, 
-                detail=f"Expected {total_tweets_needed} tweets but got {len(result.tweets)}"
+                status_code=500,
+                detail=f"Expected {total_tweets_needed} tweets but got {len(result.tweets)}",
             )
-        
+
         # Save tweets to database
         conn = get_connection()
         try:
             with conn.cursor() as cursor:
                 current_time = datetime.utcnow()
-                
+
                 # Save each tweet as a separate row
                 saved_posts = []
                 for i, tweet in enumerate(result.tweets):
-                    scheduled_time = scheduled_times[i] if i < len(scheduled_times) else None
+                    scheduled_time = (
+                        scheduled_times[i] if i < len(scheduled_times) else None
+                    )
                     # Clean the tweet content before saving
                     cleaned_content = clean_tweet_content(tweet.tweet)
                     cursor.execute(
@@ -1314,25 +1754,33 @@ async def regenerate_unposted_tweets(request: TweetRequest):
                             request.user_id,
                             request.account_id,
                             "unposted",
-                            scheduled_time if str(post_mode).upper() == "TRUE" else None,
+                            (
+                                scheduled_time
+                                if str(post_mode).upper() == "TRUE"
+                                else None
+                            ),
                             tweet.risk_score,
-                            None if str(post_mode).upper() == "TRUE" else scheduled_time,
+                            (
+                                None
+                                if str(post_mode).upper() == "TRUE"
+                                else scheduled_time
+                            ),
                         ),
                     )
                     post_data = cursor.fetchone()
                     saved_posts.append(
                         {
-                        "id": post_data[0],
-                        "content": post_data[1],
-                        "created_at": post_data[2],
+                            "id": post_data[0],
+                            "content": post_data[1],
+                            "created_at": post_data[2],
                             "status": post_data[3],
                             "scheduled_time": post_data[4],
                             "risk_score": post_data[5],
                         }
                     )
-                
+
                 conn.commit()
-                
+
         except Exception as db_error:
             print(f"Database error: {str(db_error)}")
             raise HTTPException(
@@ -1341,7 +1789,7 @@ async def regenerate_unposted_tweets(request: TweetRequest):
             )
         finally:
             conn.close()
-        
+
         print(f"Successfully regenerated {total_tweets_needed} tweets")
         return result
     except HTTPException as he:
@@ -1351,8 +1799,3 @@ async def regenerate_unposted_tweets(request: TweetRequest):
         raise HTTPException(
             status_code=500, detail=f"Failed to regenerate tweets: {str(e)}"
         )
-
-
-
-
-
