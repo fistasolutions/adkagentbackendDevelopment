@@ -28,6 +28,7 @@ from routes.post_reply import router as post_reply_router
 from routes.fetch_data_hastags import router as hashtag_router
 from routes.comment_reply_api import router as comment_reply_api_router
 from routes.compitters_data_fetch import router as compitters_data_fetch_router
+from routes.analytics_account import router as analytics_account_router
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi import Body, Query
 from pydantic import BaseModel
@@ -90,6 +91,7 @@ app.include_router(post_reply_router, prefix="/api")
 app.include_router(hashtag_router, prefix="/api")
 app.include_router(comment_reply_api_router, prefix="/api")
 app.include_router(compitters_data_fetch_router, prefix="/api")
+app.include_router(analytics_account_router, prefix="/api")
 
 
 class TweetGenerationRequest(BaseModel):
